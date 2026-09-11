@@ -131,6 +131,7 @@ export class Matchmaker {
     const roomId = `room_${nanoid(8)}`;
     const room = new Room(roomId, playerA, playerB);
     this.rooms.set(roomId, room);
+    room.onEnded = () => this.removeRoom(roomId);
 
     playerA.roomId = roomId;
     playerB.roomId = roomId;

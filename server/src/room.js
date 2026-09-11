@@ -14,6 +14,7 @@ export class Room {
     // 模式B:雙方地圖各自獨立,食物也各玩各的,不共用同一份清單
     this.foods = { [playerA.id]: new Map(), [playerB.id]: new Map() };
     this.ended = false;
+    this.onEnded = null; // 由外部(matchmaking.js)注入,對戰結束時通知移除房間
 
     this.spawnInitialFoods();
     this.startMinimapBroadcast();
@@ -324,5 +325,10 @@ export class Room {
     this.ended = true;
     clearInterval(this.minimapTimer);
     this.broadcast(S2C.GAME_OVER, result);
+    // 清掉雙方的 roomId,否則 Player.isBusy() 會永遠判定為忙碌,再也配不到對戰
+    for (const id of this.playerIds) {
+      if (this.players[id].roomId === this.id) this.players[id].roomId = null;
+    }
+    this.onEnded?.();
   }
 }
