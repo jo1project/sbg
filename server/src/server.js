@@ -5,7 +5,10 @@ import { C2S, S2C, CONFIG } from "./events.js";
 import { createPlayer, findPlayerById, findPlayerByRecoveryCode } from "./db.js";
 
 const PORT = process.env.PORT || 8080;
-const wss = new WebSocketServer({ port: PORT });
+// 正式環境建議搭配 deploy/nginx.conf.example,由 Nginx 終止 wss:// 再轉給這裡的 ws://
+// 這種部署下 Node 不需要對外開放,設 HOST=127.0.0.1 只接受本機的 Nginx 轉發
+const HOST = process.env.HOST || "0.0.0.0";
+const wss = new WebSocketServer({ port: PORT, host: HOST });
 const matchmaker = new Matchmaker();
 
 // 目前在線玩家: playerId -> Player (供好友ID配對查詢)

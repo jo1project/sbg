@@ -1,0 +1,50 @@
+# Nginx 反向代理設定範例:把 wss:// 終止在 Nginx,內部轉給 Node 的 ws://127.0.0.1:8080
+#
+# 使用方式:
+#   1. 把這個檔案複製到 /etc/nginx/sites-available/snake-server,把 your-domain.com 換成實際網域
+#   2. ln -s /etc/nginx/sites-available/snake-server /etc/nginx/sites-enabled/
+#   3. nginx -t && systemctl reload nginx
+#   4. sudo apt install certbot python3-certbot-nginx
+#      sudo certbot --nginx -d your-domain.com
+#      certbot 會自動改寫下面的 listen 443 區塊、填入憑證路徑,並設好自動續期
+#   5. Node 端建議只綁 127.0.0.1(見 server/README.md 的 HOST 環境變數說明),
+#      對外只留 Nginx 的 443,8080 不要對外開放
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name your-domain.com;
+
+    # certbot 續期用的 ACME challenge,其餘一律導去 https
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name your-domain.com;
+
+    # certbot --nginx 會自動填入下面兩行憑證路徑
+    # ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+
+        # WebSocket升級握手必要header
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # 對戰是長連線,提高逾時避免閒置時被斷線
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}

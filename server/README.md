@@ -61,7 +61,8 @@ npm install
 npm start
 ```
 
-預設監聽埠號 `8080`,可用環境變數 `PORT` 覆寫:
+預設監聽埠號 `8080`,可用環境變數 `PORT` 覆寫;預設綁 `0.0.0.0`(本機測試方便直連),
+可用環境變數 `HOST` 覆寫(正式環境搭配 Nginx 時建議設 `127.0.0.1`,見下方部署步驟):
 
 ```bash
 PORT=3000 npm start
@@ -72,14 +73,14 @@ PORT=3000 npm start
 1. VPS 安裝 Node.js 20+(`nvm install 20` 或發行版套件管理員)
 2. 把整個 `snake-server/` 資料夾上傳到VPS(或用git clone)
 3. `npm install --production`
-4. 用 `pm2` 或 `systemd` 讓程式常駐並自動重啟:
+4. 用 `pm2` 或 `systemd` 讓程式常駐並自動重啟,並把 `HOST` 設成只接受本機連線:
    ```bash
    npm install -g pm2
-   pm2 start src/server.js --name snake-server
+   HOST=127.0.0.1 pm2 start src/server.js --name snake-server
    pm2 save
    ```
-5. 前面加一層 Nginx 反向代理,並申請 Let's Encrypt 憑證,把 `ws://` 升級成 `wss://`
-   (手機App連線正式環境建議一律走加密連線)
+5. 前面加一層 Nginx 終止 `wss://` 再轉給本機的 `ws://127.0.0.1:8080`,並用 Let's Encrypt 申請憑證
+   (手機App連線正式環境建議一律走加密連線)。設定範例、certbot指令見 `deploy/nginx.conf.example`
 
 ## 檔案結構
 
