@@ -1,0 +1,16 @@
+{
+  "name": "snake-battle-server",
+  "version": "0.1.0",
+  "description": "1v1 連線貪食蛇對戰伺服器 (權威伺服器 + WebSocket)",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "nanoid": "^5.0.7",
+    "better-sqlite3": "^11.3.0"
+  }
+}
