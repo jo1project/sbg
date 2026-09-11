@@ -32,3 +32,58 @@ flutter run        # 需要實機或模擬器(iOS/Android)
 
 伺服器位址在App內的連線畫面輸入(存於本機 `shared_preferences`),本機測試預設 `ws://localhost:8080`;
 Android模擬器連本機伺服器要用 `ws://10.0.2.2:8080`。
+
+## 發布到 TestFlight(沒有Mac,用GitHub Actions建置)
+
+Xcode只能跑在macOS,這個repo沒有Mac可以本地建置。改用GitHub Actions的macOS runner遠端建置+
+簽章+上傳,workflow定義在 `.github/workflows/ios-testflight.yml`(手動觸發,GitHub repo → Actions →
+iOS TestFlight → Run workflow)。以下材料需要在**自己的電腦**準備好(不需要Mac,openssl就能做,
+私鑰全程留在自己手上,只有簽出來的結果貼進GitHub secrets):
+
+### 1. Apple Developer 網站註冊 Bundle ID
+developer.apple.com/account → Certificates, IDs & Profiles → Identifiers → + → App IDs → App
+→ Bundle ID (Explicit) 填 `com.sbg.snakeBattle`(跟 `ios/Runner.xcodeproj` 裡設定的一致),
+Capabilities先不用勾,存檔。
+
+### 2. 產生 Distribution 憑證(CSR用openssl做,不需要Mac)
+```bash
+openssl genrsa -out ios_distribution.key 2048
+openssl req -new -key ios_distribution.key -out ios_distribution.csr \
+  -subj "/emailAddress=你的AppleID信箱/CN=你的名字/C=TW"
+```
+把 `ios_distribution.csr` 上傳到 developer.apple.com/account → Certificates → + →
+Apple Distribution,下載回來的 `.cer` 轉成 p12(密碼自己設一組,等下要填進secret):
+```bash
+openssl x509 -in distribution.cer -inform DER -out distribution.pem -outform PEM
+openssl pkcs12 -export -inkey ios_distribution.key -in distribution.pem \
+  -out distribution.p12 -passout pass:換成你自己的密碼
+```
+
+### 3. 產生 App Store 用的 Provisioning Profile
+developer.apple.com/account → Profiles → + → App Store → 選步驟1的App ID → 選步驟2的憑證 →
+下載 `.mobileprovision`。
+
+### 4. App Store Connect 建立App + API Key
+- appstoreconnect.apple.com → My Apps → + → New App,Bundle ID選 `com.sbg.snakeBattle`,填名稱/SKU
+- appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API → +,
+  角色選 App Manager,產生後**立刻下載 `.p8`(只能下載一次,沒存到要重產)**,記下 Key ID 和 Issuer ID
+
+### 5. 把材料填進 GitHub repo secrets
+GitHub repo → Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret 名稱 | 內容 |
+|---|---|
+| `IOS_DIST_CERTIFICATE_P12_BASE64` | `base64 -w0 distribution.p12` 的輸出 |
+| `IOS_DIST_CERTIFICATE_PASSWORD` | 步驟2轉p12時設的密碼 |
+| `IOS_PROVISIONING_PROFILE_BASE64` | `base64 -w0 xxx.mobileprovision` 的輸出 |
+| `APPSTORE_ISSUER_ID` | 步驟4的 Issuer ID |
+| `APPSTORE_API_KEY_ID` | 步驟4的 Key ID |
+| `APPSTORE_API_PRIVATE_KEY` | 步驟4下載的 `.p8` 檔案整個內容(含 BEGIN/END PRIVATE KEY 那兩行) |
+
+Team ID 和 Provisioning Profile 名稱workflow會自動從profile檔案裡讀出來,不用另外填。
+
+### 6. 觸發建置
+GitHub repo → Actions → iOS TestFlight → Run workflow。macOS runner較慢,約10幾分鐘跑完。
+上傳後App Store Connect那邊還要跑幾分鐘processing,跑完會出現在 TestFlight分頁。**第一次**要在
+App Store Connect補完「出口合規」等基本問題(沒用到加密的話選No)才會真的推送給測試員的手機。
+把自己加進內部測試員名單,手機上裝 TestFlight App 就能收到安裝通知。
