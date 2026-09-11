@@ -78,18 +78,27 @@ jobs:
       - name: flutter build ios(不簽章,只做Dart AOT編譯+CocoaPods)
         run: flutter build ios --release --no-codesign
 
-      - name: xcodebuild archive(手動指定簽章身份)
+      - name: 只在 Runner target 寫入手動簽章設定
+        # 不能用 xcodebuild 的 command-line KEY=VALUE 覆蓋(那會對整個workspace的每個
+        # target都生效,包含shared_preferences等套件用SPM帶進來、本來就不需要簽章的
+        # resource-only target,會報 "does not support provisioning profiles" 炸掉)。
+        # 改用 PlistBuddy 只寫進 Runner target 自己的 Release 設定(objects. 後面那串ID
+        # 是 project.pbxproj 裡 Runner target Release XCBuildConfiguration 的固定ID)。
+        run: |
+          PBXPROJ=ios/Runner.xcodeproj/project.pbxproj
+          /usr/libexec/PlistBuddy -c "Add :objects:97C147071CF9000F007C117D:buildSettings:CODE_SIGN_STYLE string Manual" "$PBXPROJ"
+          /usr/libexec/PlistBuddy -c "Add :objects:97C147071CF9000F007C117D:buildSettings:CODE_SIGN_IDENTITY string Apple Distribution" "$PBXPROJ"
+          /usr/libexec/PlistBuddy -c "Add :objects:97C147071CF9000F007C117D:buildSettings:DEVELOPMENT_TEAM string $TEAM_ID" "$PBXPROJ"
+          /usr/libexec/PlistBuddy -c "Add :objects:97C147071CF9000F007C117D:buildSettings:PROVISIONING_PROFILE_SPECIFIER string $PROFILE_NAME" "$PBXPROJ"
+
+      - name: xcodebuild archive
         run: |
           xcodebuild archive \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PROVISIONING_PROFILE="$PROFILE_UUID"
+            -destination 'generic/platform=iOS'
 
       - name: xcodebuild -exportArchive
         run: |
