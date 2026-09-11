@@ -50,6 +50,7 @@ jobs:
 
           security cms -D -i "$PROFILE_DIR/profile.mobileprovision" > "$RUNNER_TEMP/profile.plist"
           echo "PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")" >> "$GITHUB_ENV"
           echo "TEAM_ID=$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")" >> "$GITHUB_ENV"
 
       - name: 產生 ExportOptions.plist
@@ -74,8 +75,28 @@ jobs:
           </plist>
           PLIST
 
-      - name: flutter build ipa
-        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+      - name: flutter build ios(不簽章,只做Dart AOT編譯+CocoaPods)
+        run: flutter build ios --release --no-codesign
+
+      - name: xcodebuild archive(手動指定簽章身份)
+        run: |
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PROVISIONING_PROFILE="$PROFILE_UUID"
+
+      - name: xcodebuild -exportArchive
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist ios/ExportOptions.plist
 
       - name: 上傳到 TestFlight
         env:
@@ -86,6 +107,6 @@ jobs:
           set -e
           mkdir -p ~/private_keys
           echo "$APPSTORE_API_PRIVATE_KEY" > ~/private_keys/AuthKey_${APPSTORE_API_KEY_ID}.p8
-          IPA_PATH=$(find build/ios/ipa -name "*.ipa" | head -n1)
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n1)
           xcrun altool --upload-app -f "$IPA_PATH" -t ios \
             --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID"
