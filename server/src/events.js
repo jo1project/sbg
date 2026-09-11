@@ -11,6 +11,8 @@ export const C2S = {
   INVITE_CANCEL: "invite_cancel",
   PING: "ping",
   FOOD_EATEN_REQUEST: "food_eaten_request",
+  // cause: "wall" | "self", headPos: 死亡當下蛇頭座標,bodyCells: 死亡當下蛇身佔用座標(不含頭)
+  // 伺服器用這三個欄位做碰撞驗證,見 room.js validateDeathReport()
   DEATH_REPORT: "death_report",
   SNAKE_POSITION_UPDATE: "snake_position_update", // 每1秒回報一次自己的蛇身座標(伺服器內部用)
   ATTACK_REQUEST: "attack_request",
@@ -38,6 +40,7 @@ export const S2C = {
   ATTACK_REJECTED: "attack_rejected",
   ATTACK_RESULT: "attack_result",
   SELF_PAUSED_BY_SPAM: "self_paused_by_spam",
+  DEATH_REPORT_REJECTED: "death_report_rejected", // 回報的座標經伺服器驗證不成立(碰撞對不上),死亡不算數
   OPPONENT_POSITION_FUZZY: "opponent_position_fuzzy", // 模糊小地圖用,每2秒推播一次
   OPPONENT_DISCONNECTED: "opponent_disconnected",
   OPPONENT_RECONNECTED: "opponent_reconnected",

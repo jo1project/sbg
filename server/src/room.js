@@ -263,13 +263,34 @@ export class Room {
     }
   }
 
-  // ---------- 死亡判定(客戶端判定、伺服器採信) ----------
+  // ---------- 死亡判定(客戶端回報座標、伺服器驗證碰撞是否成立) ----------
 
-  handleDeathReport(playerId) {
+  // 用死亡當下回報的座標做邏輯自洽驗證,不是重新模擬整場移動:
+  // 撞牆用地圖邊界判斷(不受延遲影響,100%準確);撞自己則檢查蛇頭是否真的落在回報的蛇身格上。
+  // 擋掉「完全沒碰撞卻回報死亡」的假造事件,細節見規格文件6.1節的取捨說明。
+  validateDeathReport(cause, headPos, bodyCells) {
+    if (!headPos || typeof headPos.x !== "number" || typeof headPos.y !== "number") return false;
+    if (cause === "wall") {
+      return headPos.x < 0 || headPos.x >= CONFIG.MAP_SIZE || headPos.y < 0 || headPos.y >= CONFIG.MAP_SIZE;
+    }
+    if (cause === "self") {
+      return Array.isArray(bodyCells) && bodyCells.some((c) => c && c.x === headPos.x && c.y === headPos.y);
+    }
+    return false; // 未知死因,直接視為不合法
+  }
+
+  handleDeathReport(playerId, cause, headPos, bodyCells) {
     if (this.ended) return; // 已結束(可能另一方剛觸發了game_over),忽略重複回報
-    const now = Date.now();
     const player = this.players[playerId];
     if (!player || player.deathReportedAt) return; // 避免同一人重複回報
+
+    if (!this.validateDeathReport(cause, headPos, bodyCells)) {
+      console.warn(`[room ${this.id}] death_report 碰撞驗證失敗,忽略 (player ${playerId}, cause=${cause})`);
+      player.send(S2C.DEATH_REPORT_REJECTED, { reason: "collision_not_verified" });
+      return;
+    }
+
+    const now = Date.now();
     player.deathReportedAt = now;
 
     const opponent = this.other(playerId);

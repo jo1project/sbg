@@ -132,7 +132,7 @@ wss.on("connection", (ws) => {
       case C2S.DEATH_REPORT: {
         const room = getRoom(player);
         if (!room) break;
-        room.handleDeathReport(player.id);
+        room.handleDeathReport(player.id, msg.cause, msg.headPos, msg.bodyCells);
         break;
       }
 
