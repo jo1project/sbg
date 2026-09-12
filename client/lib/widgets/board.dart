@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../config.dart';
@@ -30,19 +31,18 @@ class Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: CustomPaint(
-        painter: _BoardPainter(
-          snake: snake,
-          foods: foods,
-          obstacles: obstacles,
-          dir: dir,
-          blind: blind,
-          moveTick: moveTick,
-        ),
-        child: Container(),
+    // 沒有AspectRatio限制,填滿外層給多少空間就畫多少(滿版地圖,不會有黑邊),
+    // 格子因此不一定是正方形,見 _BoardPainter 裡 cellW/cellH 分開計算
+    return CustomPaint(
+      painter: _BoardPainter(
+        snake: snake,
+        foods: foods,
+        obstacles: obstacles,
+        dir: dir,
+        blind: blind,
+        moveTick: moveTick,
       ),
+      child: Container(),
     );
   }
 }
@@ -64,10 +64,12 @@ class _BoardPainter extends CustomPainter {
     required this.moveTick,
   });
 
-  // 格子中心不變,畫出來的圖案邊長是格子的 _spriteScale 倍,蓋過鄰近格子做放大效果
-  Rect _enlargedCell(Point p, double cell) {
-    final w = cell * _spriteScale;
-    return Rect.fromLTWH(p.x * cell + cell / 2 - w / 2, p.y * cell + cell / 2 - w / 2, w, w);
+  // 格子中心不變,畫出來的圖案邊長是格子的 _spriteScale 倍,蓋過鄰近格子做放大效果。
+  // 滿版地圖下 cellW/cellH 不一定相等(棋盤不是正方形),所以寬高分開算。
+  Rect _enlargedCell(Point p, double cellW, double cellH) {
+    final w = cellW * _spriteScale;
+    final h = cellH * _spriteScale;
+    return Rect.fromLTWH(p.x * cellW + cellW / 2 - w / 2, p.y * cellH + cellH / 2 - h / 2, w, h);
   }
 
   // 白色外框沿著圖案本身的輪廓(不透明像素)畫,不是格子的矩形框:
@@ -97,7 +99,8 @@ class _BoardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cell = size.width / GameConfig.mapSize;
+    final cellW = size.width / GameConfig.mapSize;
+    final cellH = size.height / GameConfig.mapSize;
     final boardRect = Rect.fromLTWH(0, 0, size.width, size.height);
     // 放大後的障礙物/人物圖案可能蓋過地圖邊界外,裁切掉超出棋盤範圍的部分
     canvas.clipRect(boardRect);
@@ -118,21 +121,22 @@ class _BoardPainter extends CustomPainter {
     final obstacleIcons = MapSprites.obstacleIcons;
     for (final o in obstacles) {
       if (!_visible(o)) continue;
-      final dest = _enlargedCell(o, cell);
+      final dest = _enlargedCell(o, cellW, cellH);
       if (obstacleIcons.isNotEmpty) {
         // 座標決定固定圖示,同一格每次重繪都一樣、整局不變動
         final icon = obstacleIcons[(o.x * 31 + o.y * 17).abs() % obstacleIcons.length];
         _drawOutlinedIcon(canvas, icon, dest);
       } else {
         // 素材尚未載入完成時的備援畫法
-        canvas.drawRect(dest.deflate(cell * 0.3), Paint()..color = Colors.white54);
+        canvas.drawRect(dest.deflate(math.min(cellW, cellH) * 0.3), Paint()..color = Colors.white54);
       }
     }
 
     final foodPaint = Paint()..color = Colors.redAccent;
+    final foodRadius = math.min(cellW, cellH) * 0.3;
     for (final f in foods) {
       if (!_visible(f)) continue;
-      canvas.drawCircle(Offset((f.x + 0.5) * cell, (f.y + 0.5) * cell), cell * 0.3, foodPaint);
+      canvas.drawCircle(Offset((f.x + 0.5) * cellW, (f.y + 0.5) * cellH), foodRadius, foodPaint);
     }
 
     // 從蛇尾畫到蛇頭,確保蛇頭(放大後)蓋在身體上面而不是被身體蓋住
@@ -142,12 +146,12 @@ class _BoardPainter extends CustomPainter {
       // 蛇頭永遠面向實際移動方向;蛇身每一節面向「朝前一節」的方向,做出跟隨感
       final segDir = i == 0 ? dir : DirectionDelta.fromDelta(snake[i - 1] - p);
       final sprite = i == 0 ? CharacterSprites.hero : CharacterSprites.goblin;
-      // 每節都往內縮2.5px,讓相鄰兩節之間多留5px距離,不要貼那麼近
-      final dest = _enlargedCell(p, cell).deflate(2.5);
+      // 每節都往內縮7.5px,讓相鄰兩節之間多留15px距離,不要貼那麼近
+      final dest = _enlargedCell(p, cellW, cellH).deflate(7.5);
       if (sprite == null) {
         // 素材尚未載入完成時的備援畫法
         final paint = Paint()..color = i == 0 ? Colors.lightGreenAccent : Colors.green;
-        canvas.drawRRect(RRect.fromRectAndRadius(dest.deflate(cell * 0.5), const Radius.circular(3)), paint);
+        canvas.drawRRect(RRect.fromRectAndRadius(dest.deflate(math.min(cellW, cellH) * 0.5), const Radius.circular(3)), paint);
         continue;
       }
       // 左右移動時改用攻擊動畫循環,上下移動維持走路動畫
@@ -170,7 +174,7 @@ class _BoardPainter extends CustomPainter {
         for (var y = 0; y < GameConfig.mapSize; y++) {
           final p = Point(x, y);
           if (_visible(p)) continue;
-          canvas.drawRect(Rect.fromLTWH(x * cell, y * cell, cell, cell), maskPaint);
+          canvas.drawRect(Rect.fromLTWH(x * cellW, y * cellH, cellW, cellH), maskPaint);
         }
       }
     }

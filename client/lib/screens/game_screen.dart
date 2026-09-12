@@ -16,45 +16,31 @@ class GameScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1712),
       body: SafeArea(
+        // 地圖滿版鋪整個畫面,能量條/搖桿/攻擊鍵都是半透明浮在地圖上面的overlay,
+        // 不再用Column把畫面切成一塊一塊、把地圖擠成中間一個正方形留大片黑邊。
         child: Stack(
           children: [
-            Column(
-              children: [
-                _TopBar(c: c),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: c.incomingAttack != null ? Colors.redAccent : Colors.transparent,
-                                width: 4,
-                              ),
-                            ),
-                            child: Board(
-                              snake: c.mySnake,
-                              foods: c.myFoods.values.toList(),
-                              obstacles: c.obstacles,
-                              dir: c.dir,
-                              blind: c.isBlind,
-                              moveTick: c.moveTick,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // 定位在這一層(地圖正上方),不是整個畫面最上方,避免蓋到能量條或被裁切
-                      _AttackHitBanner(show: c.showAttackHitBanner),
-                    ],
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: c.incomingAttack != null ? Colors.redAccent : Colors.transparent,
+                    width: 4,
                   ),
                 ),
-                _BottomBelt(c: c),
-              ],
+                child: Board(
+                  snake: c.mySnake,
+                  foods: c.myFoods.values.toList(),
+                  obstacles: c.obstacles,
+                  dir: c.dir,
+                  blind: c.isBlind,
+                  moveTick: c.moveTick,
+                ),
+              ),
             ),
+            Positioned(top: 0, left: 0, right: 0, child: _TopBar(c: c)),
+            Positioned(bottom: 0, left: 0, right: 0, child: _BottomBelt(c: c)),
+            _AttackHitBanner(show: c.showAttackHitBanner),
             if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
             if (c.incomingAttack != null) const _DodgeAlert(),
             if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
@@ -72,8 +58,9 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.black45, // 浮在地圖上面,加半透明底色避免看不清楚文字
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -198,8 +185,8 @@ class _DodgeAlert extends StatelessWidget {
   }
 }
 
-// 攻擊命中時從地圖正上方滑入橫幅圖片,停留後滑出(見GameController.showAttackHitBanner)。
-// 定位在包住Board的那個Stack裡(不是整個畫面的Stack),所以不會蓋到上面的能量條/小地圖。
+// 攻擊命中時從畫面上方滑入橫幅圖片,停留後滑出(見GameController.showAttackHitBanner)。
+// 定位在最外層Stack(預設就會clip,不會像之前那樣因為Clip.none而在「隱藏」狀態下還蓋在能量條上一直看得到)。
 class _AttackHitBanner extends StatelessWidget {
   final bool show;
   const _AttackHitBanner({required this.show});
@@ -209,7 +196,7 @@ class _AttackHitBanner extends StatelessWidget {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
-      top: show ? 12 : -160,
+      top: show ? 64 : -160,
       left: 0,
       right: 0,
       child: IgnorePointer(
