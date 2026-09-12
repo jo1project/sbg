@@ -37,6 +37,7 @@ class GameScreen extends StatelessWidget {
                           foods: c.myFoods.values.toList(),
                           dir: c.dir,
                           blind: c.isBlind,
+                          moveTick: c.moveTick,
                         ),
                       ),
                     ),

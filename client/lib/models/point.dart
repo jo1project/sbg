@@ -4,6 +4,7 @@ class Point {
   const Point(this.x, this.y);
 
   Point operator +(Point o) => Point(x + o.x, y + o.y);
+  Point operator -(Point o) => Point(x - o.x, y - o.y);
 
   @override
   bool operator ==(Object other) => other is Point && other.x == x && other.y == y;
@@ -37,4 +38,19 @@ extension DirectionDelta on Direction {
     final d2 = b.delta;
     return d1.x == -d2.x && d1.y == -d2.y;
   }
+
+  // 反推兩個相鄰格子間的移動方向,用於幫蛇身每一節決定面向(見 CharacterSprites)
+  static Direction fromDelta(Point d) {
+    if (d.x > 0) return Direction.right;
+    if (d.x < 0) return Direction.left;
+    return d.y > 0 ? Direction.down : Direction.up;
+  }
+
+  // Puny Characters 精靈表(29欄x8列)裡對應此方向的列索引,其餘列是對角朝向,本遊戲用不到
+  int get spriteRow => switch (this) {
+        Direction.down => 0,
+        Direction.left => 2,
+        Direction.up => 4,
+        Direction.right => 6,
+      };
 }

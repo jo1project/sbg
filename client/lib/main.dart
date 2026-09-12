@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'game/character_sprites.dart';
 import 'game/game_controller.dart';
 import 'screens/game_screen.dart';
 
@@ -41,7 +42,7 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   Future<void> _init() async {
-    await controller.bootstrap();
+    await Future.wait([controller.bootstrap(), CharacterSprites.load()]);
     await controller.connectAndIdentify();
   }
 

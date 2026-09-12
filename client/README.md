@@ -13,6 +13,7 @@
 - 對手能量條、模糊小地圖(每2秒更新)、攻擊警示外框
 - Random效果套用(加速影響移動間隔、暫停凍結操作、致盲遮蔽畫面)
 - 防Spam自懲、對手斷線倒數、Double KO/勝負結果畫面
+- 蛇頭/蛇身像素角色動畫(見下方「美術素材」)
 
 ## 已知限制 / 未做
 
@@ -21,6 +22,19 @@
 - 能量滿量的脈動提示 — 目前只用靜態白框示意
 - 搖桿死區/靈敏度、觸控熱區大小 — 待實機測試調整(規格9.2節)
 - 沒有做 web/desktop 支援(僅 iOS/Android,與規格1節一致);WebSocket 用 `dart:io`,若未來要支援 web 需換成 `web_socket_channel`
+
+## 美術素材
+
+`assets/sprites/hero.png`(蛇頭)、`assets/sprites/goblin.png`(蛇身,每一節都用)來自 "Puny Characters"
+素材包(928x256,29欄x8列,每格32x32),分別是裡面現成的 `Human-Fighter` 和 `Goblin-Warrior` 精靈表,先
+當預設/佔位選擇,還沒套用規格2.4/2.5節討論的頭部客製化疊圖。渲染邏輯在 `lib/widgets/board.dart`:
+- 列(row)= 方向,只用上下左右四個主列(`Direction.spriteRow`,見 `lib/models/point.dart`),對角列用不到
+- 欄(col)= 走路動畫,1~4 四格循環,由 `GameController.moveTick`(每次實際移動+1)驅動,跟移動節奏天然同步
+- 蛇頭用實際移動方向;蛇身每一節用「朝向前一節」的方向(`Direction.fromDelta`),做出跟隨感
+- 素材圖片異步載入(`CharacterSprites.load()`,在 `main.dart` 啟動時觸發),載入完成前用原本的色塊當備援畫法
+
+**授權待確認**:這兩包不是 Kenney 的 CC0 素材,壓縮檔裡沒附授權/README,目前只知道包名,正式上架前需要
+補確認授權範圍(能不能商用、要不要具名致謝),否則有法律風險。
 
 ## 開發
 

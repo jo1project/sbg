@@ -59,6 +59,7 @@ class GameController extends ChangeNotifier {
   Direction dir = Direction.right;
   Direction? _pendingDir;
   int _growthPending = 0;
+  int moveTick = 0; // 每次實際移動+1,驅動走路動畫的欄位切換(見 CharacterSprites)
 
   final Map<String, Point> myFoods = {};
   Point? oppFuzzyPos;
@@ -394,6 +395,7 @@ class GameController extends ChangeNotifier {
     oppFuzzyPos = null;
     myEffect = null;
     _growthPending = 0;
+    moveTick = 0;
     pendingOutgoingAttack = false;
     incomingAttack = null;
     _attackerByAttackId.clear();
@@ -462,6 +464,7 @@ class GameController extends ChangeNotifier {
     dir = nextDir;
     mySnake = advanceSnake(mySnake, newHead, grow: grow);
     if (grow) _growthPending--;
+    moveTick++;
 
     final eatenId = myFoods.entries.where((e) => e.value == newHead).map((e) => e.key).firstOrNull;
     if (eatenId != null) {
