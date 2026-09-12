@@ -42,6 +42,7 @@ class Ev {
   static const inviteCancelled = "invite_cancelled";
   static const pong = "pong";
   static const foodSpawned = "food_spawned";
+  static const obstacleLayout = "obstacle_layout";
   static const energyUpdate = "energy_update";
   static const attackIncoming = "attack_incoming";
   static const attackRejected = "attack_rejected";

@@ -1,5 +1,5 @@
 import 'dart:ui' as ui;
-import 'package:flutter/services.dart' show rootBundle;
+import 'sprite_loader.dart';
 
 // 英雄(蛇頭)/哥布林(蛇身)精靈表,素材來源見 client/README.md「美術素材」一節。
 // 兩張表格式相同:928x256,29欄x8列,每格32x32像素。
@@ -13,14 +13,7 @@ class CharacterSprites {
   static ui.Image? goblin;
 
   static Future<void> load() async {
-    hero = await _loadImage('assets/sprites/hero.png');
-    goblin = await _loadImage('assets/sprites/goblin.png');
-  }
-
-  static Future<ui.Image> _loadImage(String assetPath) async {
-    final data = await rootBundle.load(assetPath);
-    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-    final frame = await codec.getNextFrame();
-    return frame.image;
+    hero = await loadUiImage('assets/sprites/hero.png');
+    goblin = await loadUiImage('assets/sprites/goblin.png');
   }
 }

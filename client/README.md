@@ -13,7 +13,7 @@
 - 對手能量條、模糊小地圖(每2秒更新)、攻擊警示外框
 - Random效果套用(加速影響移動間隔、暫停凍結操作、致盲遮蔽畫面)
 - 防Spam自懲、對手斷線倒數、Double KO/勝負結果畫面
-- 蛇頭/蛇身像素角色動畫(見下方「美術素材」)
+- 蛇頭/蛇身像素角色動畫、地圖障礙物(素描風羊皮紙地圖背景+障礙物圖示,撞到判死亡)(見下方「美術素材」)
 
 ## 已知限制 / 未做
 
@@ -25,16 +25,21 @@
 
 ## 美術素材
 
-`assets/sprites/hero.png`(蛇頭)、`assets/sprites/goblin.png`(蛇身,每一節都用)來自 "Puny Characters"
-素材包(928x256,29欄x8列,每格32x32),分別是裡面現成的 `Human-Fighter` 和 `Goblin-Warrior` 精靈表,先
-當預設/佔位選擇,還沒套用規格2.4/2.5節討論的頭部客製化疊圖。渲染邏輯在 `lib/widgets/board.dart`:
+**角色**:`assets/sprites/hero.png`(蛇頭)、`assets/sprites/goblin.png`(蛇身,每一節都用)來自
+"Puny Characters" 素材包(928x256,29欄x8列,每格32x32),分別是裡面現成的 `Human-Fighter` 和
+`Goblin-Warrior` 精靈表,先當預設/佔位選擇,還沒套用規格2.4/2.5節討論的頭部客製化疊圖。已確認為
+付費購買、可商用的授權,可以正式使用。渲染邏輯在 `lib/widgets/board.dart`:
 - 列(row)= 方向,只用上下左右四個主列(`Direction.spriteRow`,見 `lib/models/point.dart`),對角列用不到
 - 欄(col)= 走路動畫,1~4 四格循環,由 `GameController.moveTick`(每次實際移動+1)驅動,跟移動節奏天然同步
 - 蛇頭用實際移動方向;蛇身每一節用「朝向前一節」的方向(`Direction.fromDelta`),做出跟隨感
 - 素材圖片異步載入(`CharacterSprites.load()`,在 `main.dart` 啟動時觸發),載入完成前用原本的色塊當備援畫法
 
-**授權待確認**:這兩包不是 Kenney 的 CC0 素材,壓縮檔裡沒附授權/README,目前只知道包名,正式上架前需要
-補確認授權範圍(能不能商用、要不要具名致謝),否則有法律風險。
+**地圖**:`assets/map/background.png` 是 Kenney Cartography Pack(CC0)的 `parchmentAncient` 羊皮紙
+紋理,固定鋪滿整個棋盤(對應規格2.4節)。`assets/map/obstacle_*.png` 是同包裡的素描風山/樹/灌木小圖示,
+座標由伺服器 `room.js` 的 `spawnInitialObstacles()` 在房間建立時各自獨立隨機生成(見規格2.3節,已實作
+`obstacle_layout` 事件+撞到判死亡+伺服器端碰撞驗證),整局不變動,一格一個固定圖示(依座標決定,不是
+每次重繪隨機換)。障礙物格加了白色外框(`lib/widgets/board.dart` 的 `obstacleBorder`)方便在地圖上辨識。
+載入邏輯在 `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用 `lib/game/sprite_loader.dart` 的圖片載入函式。
 
 ## 開發
 

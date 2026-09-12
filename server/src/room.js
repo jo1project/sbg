@@ -13,9 +13,11 @@ export class Room {
 
     // 模式B:雙方地圖各自獨立,食物也各玩各的,不共用同一份清單
     this.foods = { [playerA.id]: new Map(), [playerB.id]: new Map() };
+    this.obstacles = { [playerA.id]: [], [playerB.id]: [] }; // 同樣各自獨立,見規格2.3節
     this.ended = false;
     this.onEnded = null; // 由外部(matchmaking.js)注入,對戰結束時通知移除房間
 
+    this.spawnInitialObstacles(); // 須在食物生成之前,讓食物避開障礙物座標
     this.spawnInitialFoods();
     this.startMinimapBroadcast();
   }
@@ -32,6 +34,36 @@ export class Room {
     }
   }
 
+  // ---------- 障礙物(靜態,整局不變動,見規格2.3節) ----------
+
+  spawnInitialObstacles() {
+    // 蛇初始重生座標(對應client端 GameController._startMatch 的起始位置),障礙物需避開
+    const startX = Math.floor(CONFIG.MAP_SIZE / 2);
+    const startY = Math.floor(CONFIG.MAP_SIZE / 2);
+    const spawnCells = [];
+    for (let i = 0; i < CONFIG.INITIAL_SNAKE_LENGTH; i++) spawnCells.push({ x: startX - i, y: startY });
+
+    for (const playerId of this.playerIds) {
+      const list = this.obstacles[playerId];
+      for (let i = 0; i < CONFIG.OBSTACLE_COUNT; i++) {
+        let pos;
+        let attempts = 0;
+        do {
+          pos = {
+            x: Math.floor(Math.random() * CONFIG.MAP_SIZE),
+            y: Math.floor(Math.random() * CONFIG.MAP_SIZE),
+          };
+          attempts++;
+        } while (
+          attempts < 50 &&
+          (spawnCells.some((c) => c.x === pos.x && c.y === pos.y) || list.some((o) => o.x === pos.x && o.y === pos.y))
+        );
+        list.push(pos);
+      }
+      this.players[playerId].send(S2C.OBSTACLE_LAYOUT, { obstacles: list });
+    }
+  }
+
   // ---------- 食物 ----------
 
   spawnInitialFoods() {
@@ -45,9 +77,11 @@ export class Room {
     const myFoods = this.foods[playerId];
     const foodId = `f_${nanoid(8)}`;
 
+    const myObstacles = this.obstacles[playerId] || [];
     const occupied = (pos) => {
       if ([...myFoods.values()].some((f) => f.x === pos.x && f.y === pos.y)) return true;
       if (player.snakeBody && player.snakeBody.some((c) => c.x === pos.x && c.y === pos.y)) return true;
+      if (myObstacles.some((o) => o.x === pos.x && o.y === pos.y)) return true;
       return false;
     };
 
@@ -267,15 +301,20 @@ export class Room {
   // ---------- 死亡判定(客戶端回報座標、伺服器驗證碰撞是否成立) ----------
 
   // 用死亡當下回報的座標做邏輯自洽驗證,不是重新模擬整場移動:
-  // 撞牆用地圖邊界判斷(不受延遲影響,100%準確);撞自己則檢查蛇頭是否真的落在回報的蛇身格上。
+  // 撞牆用地圖邊界判斷(不受延遲影響,100%準確);撞自己則檢查蛇頭是否真的落在回報的蛇身格上;
+  // 撞障礙物則比對該玩家自己的障礙物座標清單(room建立時生成,見 spawnInitialObstacles)。
   // 擋掉「完全沒碰撞卻回報死亡」的假造事件,細節見規格文件6.1節的取捨說明。
-  validateDeathReport(cause, headPos, bodyCells) {
+  validateDeathReport(playerId, cause, headPos, bodyCells) {
     if (!headPos || typeof headPos.x !== "number" || typeof headPos.y !== "number") return false;
     if (cause === "wall") {
       return headPos.x < 0 || headPos.x >= CONFIG.MAP_SIZE || headPos.y < 0 || headPos.y >= CONFIG.MAP_SIZE;
     }
     if (cause === "self") {
       return Array.isArray(bodyCells) && bodyCells.some((c) => c && c.x === headPos.x && c.y === headPos.y);
+    }
+    if (cause === "obstacle") {
+      const list = this.obstacles[playerId] || [];
+      return list.some((o) => o.x === headPos.x && o.y === headPos.y);
     }
     return false; // 未知死因,直接視為不合法
   }
@@ -285,7 +324,7 @@ export class Room {
     const player = this.players[playerId];
     if (!player || player.deathReportedAt) return; // 避免同一人重複回報
 
-    if (!this.validateDeathReport(cause, headPos, bodyCells)) {
+    if (!this.validateDeathReport(playerId, cause, headPos, bodyCells)) {
       console.warn(`[room ${this.id}] death_report 碰撞驗證失敗,忽略 (player ${playerId}, cause=${cause})`);
       player.send(S2C.DEATH_REPORT_REJECTED, { reason: "collision_not_verified" });
       return;

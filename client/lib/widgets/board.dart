@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../game/character_sprites.dart';
+import '../game/map_sprites.dart';
 import '../models/point.dart';
 
-// 棋盤繪製:格線 + 蛇身 + 食物。blind 效果時只露出蛇頭前方兩格,其餘蓋黑。
+// 棋盤繪製:背景 + 格線 + 障礙物 + 蛇身 + 食物。blind 效果時只露出蛇頭前方兩格,其餘蓋黑。
 class Board extends StatelessWidget {
   final List<Point> snake;
   final List<Point> foods;
+  final List<Point> obstacles;
   final Direction dir;
   final bool blind;
   final int moveTick;
@@ -15,6 +17,7 @@ class Board extends StatelessWidget {
     super.key,
     required this.snake,
     required this.foods,
+    required this.obstacles,
     required this.dir,
     required this.blind,
     required this.moveTick,
@@ -25,7 +28,14 @@ class Board extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 1,
       child: CustomPaint(
-        painter: _BoardPainter(snake: snake, foods: foods, dir: dir, blind: blind, moveTick: moveTick),
+        painter: _BoardPainter(
+          snake: snake,
+          foods: foods,
+          obstacles: obstacles,
+          dir: dir,
+          blind: blind,
+          moveTick: moveTick,
+        ),
         child: Container(),
       ),
     );
@@ -35,6 +45,7 @@ class Board extends StatelessWidget {
 class _BoardPainter extends CustomPainter {
   final List<Point> snake;
   final List<Point> foods;
+  final List<Point> obstacles;
   final Direction dir;
   final bool blind;
   final int moveTick;
@@ -42,6 +53,7 @@ class _BoardPainter extends CustomPainter {
   _BoardPainter({
     required this.snake,
     required this.foods,
+    required this.obstacles,
     required this.dir,
     required this.blind,
     required this.moveTick,
@@ -58,14 +70,49 @@ class _BoardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final cell = size.width / GameConfig.mapSize;
-    final gridPaint = Paint()
-      ..color = Colors.white12
-      ..strokeWidth = 1;
+    final boardRect = Rect.fromLTWH(0, 0, size.width, size.height);
 
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = const Color(0xFF10231A));
+    final bg = MapSprites.background;
+    if (bg != null) {
+      canvas.drawImageRect(
+        bg,
+        Rect.fromLTWH(0, 0, bg.width.toDouble(), bg.height.toDouble()),
+        boardRect,
+        Paint(),
+      );
+    } else {
+      // 素材尚未載入完成時的備援畫法
+      canvas.drawRect(boardRect, Paint()..color = const Color(0xFF10231A));
+    }
+
+    // 素描風古地圖背景較淺,格線改用半透明深色,淺色備援底則沿用原本的淺格線
+    final gridPaint = Paint()
+      ..color = bg != null ? Colors.black26 : Colors.white12
+      ..strokeWidth = 1;
     for (var i = 0; i <= GameConfig.mapSize; i++) {
       canvas.drawLine(Offset(i * cell, 0), Offset(i * cell, size.height), gridPaint);
       canvas.drawLine(Offset(0, i * cell), Offset(size.width, i * cell), gridPaint);
+    }
+
+    final obstacleIcons = MapSprites.obstacleIcons;
+    final obstacleBorder = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    for (final o in obstacles) {
+      if (!_visible(o)) continue;
+      final dest = Rect.fromLTWH(o.x * cell, o.y * cell, cell, cell);
+      canvas.drawRect(dest.deflate(1), obstacleBorder);
+      if (obstacleIcons.isNotEmpty) {
+        // 座標決定固定圖示,同一格每次重繪都一樣、整局不變動
+        final icon = obstacleIcons[(o.x * 31 + o.y * 17).abs() % obstacleIcons.length];
+        canvas.drawImageRect(
+          icon,
+          Rect.fromLTWH(0, 0, icon.width.toDouble(), icon.height.toDouble()),
+          dest.deflate(cell * 0.1),
+          Paint()..filterQuality = FilterQuality.none,
+        );
+      }
     }
 
     final foodPaint = Paint()..color = Colors.redAccent;
@@ -113,6 +160,7 @@ class _BoardPainter extends CustomPainter {
   bool shouldRepaint(covariant _BoardPainter old) =>
       old.snake != snake ||
       old.foods != foods ||
+      old.obstacles != obstacles ||
       old.dir != dir ||
       old.blind != blind ||
       old.moveTick != moveTick;

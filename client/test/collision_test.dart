@@ -20,6 +20,12 @@ void main() {
     expect(checkDeath(const Point(5, 8), body, grow: true).cause, "self");
   });
 
+  test('撞障礙物:新頭落在障礙物座標上判定死亡', () {
+    const obstacles = [Point(3, 3), Point(3, 4)];
+    expect(checkDeath(const Point(3, 3), const [], grow: false, obstacles: obstacles).cause, "obstacle");
+    expect(checkDeath(const Point(3, 5), const [], grow: false, obstacles: obstacles).cause, null);
+  });
+
   test('advanceSnake:非成長移除尾巴,成長保留尾巴', () {
     final body = [const Point(5, 5), const Point(5, 6), const Point(5, 7)];
     final moved = advanceSnake(body, const Point(5, 4), grow: false);

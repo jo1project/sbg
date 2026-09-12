@@ -62,6 +62,7 @@ class GameController extends ChangeNotifier {
   int moveTick = 0; // 每次實際移動+1,驅動走路動畫的欄位切換(見 CharacterSprites)
 
   final Map<String, Point> myFoods = {};
+  List<Point> obstacles = []; // 伺服器房間建立時一次性推送,整局不變動,見 room.js spawnInitialObstacles
   Point? oppFuzzyPos;
 
   ActiveEffect? myEffect;
@@ -275,6 +276,16 @@ class GameController extends ChangeNotifier {
         if (pos != null) myFoods[foodId] = pos;
         break;
 
+      case Ev.obstacleLayout:
+        final list = msg["obstacles"] as List<dynamic>?;
+        if (list != null) {
+          obstacles = list
+              .map((o) => Point.fromJson(o as Map<String, dynamic>?))
+              .whereType<Point>()
+              .toList();
+        }
+        break;
+
       case Ev.opponentPositionFuzzy:
         oppFuzzyPos = Point.fromJson(msg["position"] as Map<String, dynamic>?);
         break;
@@ -390,8 +401,8 @@ class GameController extends ChangeNotifier {
     gameOver = null;
     myEnergy = 0;
     oppEnergy = 0;
-    // 注意:伺服器在 match_found 之前就會送 food_spawned(Room建構時),
-    // 這裡不能清 myFoods,否則會把剛到的初始食物清掉
+    // 注意:伺服器在 match_found 之前就會送 food_spawned / obstacle_layout(Room建構時),
+    // 這裡不能清 myFoods / obstacles,否則會把剛到的初始資料清掉
     oppFuzzyPos = null;
     myEffect = null;
     _growthPending = 0;
@@ -416,6 +427,7 @@ class GameController extends ChangeNotifier {
     opponentId = null;
     gameOver = null;
     myFoods.clear();
+    obstacles = [];
     _bannerClearTimer?.cancel();
     banner = null;
     _stopMatchTimers();
@@ -449,7 +461,7 @@ class GameController extends ChangeNotifier {
     final newHead = head + nextDir.delta;
     final grow = _growthPending > 0;
 
-    final death = checkDeath(newHead, mySnake, grow: grow);
+    final death = checkDeath(newHead, mySnake, grow: grow, obstacles: obstacles);
     if (death.isDead) {
       _moveTimer?.cancel();
       _socket.send(Ev.deathReport, {

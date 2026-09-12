@@ -11,7 +11,7 @@ export const C2S = {
   INVITE_CANCEL: "invite_cancel",
   PING: "ping",
   FOOD_EATEN_REQUEST: "food_eaten_request",
-  // cause: "wall" | "self", headPos: 死亡當下蛇頭座標,bodyCells: 死亡當下蛇身佔用座標(不含頭)
+  // cause: "wall" | "self" | "obstacle", headPos: 死亡當下蛇頭座標,bodyCells: 死亡當下蛇身佔用座標(不含頭)
   // 伺服器用這三個欄位做碰撞驗證,見 room.js validateDeathReport()
   DEATH_REPORT: "death_report",
   SNAKE_POSITION_UPDATE: "snake_position_update", // 每1秒回報一次自己的蛇身座標(伺服器內部用)
@@ -35,6 +35,7 @@ export const S2C = {
   INVITE_CANCELLED: "invite_cancelled",   // 發起方自己取消(通知對方邀請已撤回)
   PONG: "pong",
   FOOD_SPAWNED: "food_spawned",
+  OBSTACLE_LAYOUT: "obstacle_layout", // 房間建立時一次性推送,只給該玩家自己,雙方各自獨立不同步
   ENERGY_UPDATE: "energy_update",
   ATTACK_INCOMING: "attack_incoming",
   ATTACK_REJECTED: "attack_rejected",
@@ -66,6 +67,8 @@ export const CONFIG = {
   INVITE_TIMEOUT_MS: 30000,       // 好友邀請有效期限
   RECONNECT_GRACE_MS: 10000,
   MAP_SIZE: 20, // 假設地圖為 20x20 格,實際依前端棋盤調整
+  INITIAL_SNAKE_LENGTH: 4, // 需與client端 GameConfig.initialSnakeLength 一致,算重生格排除用
+  OBSTACLE_COUNT: 15, // 每位玩家地圖上的障礙物數量(各自獨立隨機,見規格2.3節)
   SNAKE_POSITION_SYNC_MS: 1000, // 玩家回報蛇身座標的頻率(伺服器內部使用,不轉發完整座標給對手)
   MINIMAP_BROADCAST_MS: 2000,   // 模糊小地圖推播頻率
   MINIMAP_NOISE_RANGE: 2,       // 小地圖座標誤差範圍(±N格的隨機雜訊)
