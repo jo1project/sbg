@@ -49,6 +49,7 @@ class GameScreen extends StatelessWidget {
             ),
             if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
             if (c.incomingAttack != null) const _DodgeAlert(),
+            _AttackHitBanner(show: c.showAttackHitBanner),
             if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
             if (c.gameOver != null) _GameOverOverlay(c: c),
           ],
@@ -184,6 +185,34 @@ class _DodgeAlert extends StatelessWidget {
           "⚡ 被攻擊了!放開搖桿閃躲",
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
+
+// 攻擊命中時從畫面上方滑入橫幅圖片,停留後滑出(見GameController.showAttackHitBanner)
+class _AttackHitBanner extends StatelessWidget {
+  final bool show;
+  const _AttackHitBanner({required this.show});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      top: show ? 12 : -160,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: AspectRatio(
+              aspectRatio: 900 / 340,
+              child: Image.asset("assets/sprites/attack_banner.png", fit: BoxFit.contain),
+            ),
+          ),
         ),
       ),
     );

@@ -75,6 +75,10 @@ class GameController extends ChangeNotifier {
 
   GameOverResult? gameOver;
 
+  // 攻擊命中(非閃躲)時,雙方畫面都短暫顯示橫幅圖片,見 _triggerAttackHitBanner
+  bool showAttackHitBanner = false;
+  int _attackHitToken = 0;
+
   bool get isPaused => myEffect != null && myEffect!.type == "pause" && myEffect!.endsAt.isAfter(DateTime.now());
   bool get isBlind => myEffect != null && myEffect!.type == "blind" && myEffect!.endsAt.isAfter(DateTime.now());
   bool get isSpeedup => myEffect != null && myEffect!.type == "speedup" && myEffect!.endsAt.isAfter(DateTime.now());
@@ -369,6 +373,8 @@ class GameController extends ChangeNotifier {
       return;
     }
 
+    _triggerAttackHitBanner();
+
     final effectType = msg["effectType"] as String?;
     if (effectType == "direct_lengthen") {
       if (iAmDefender) {
@@ -388,6 +394,19 @@ class GameController extends ChangeNotifier {
         notifyListeners();
       });
     }
+  }
+
+  // 攻擊命中橫幅:用token讓連續命中時,舊的隱藏Timer不會把新的一次提早關掉
+  void _triggerAttackHitBanner() {
+    _attackHitToken++;
+    final token = _attackHitToken;
+    showAttackHitBanner = true;
+    Timer(const Duration(milliseconds: 1000), () {
+      if (_attackHitToken == token) {
+        showAttackHitBanner = false;
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _persistPlayerId() async {
@@ -413,6 +432,7 @@ class GameController extends ChangeNotifier {
     _attackerByAttackId.clear();
     _frozenByDisconnect = false;
     opponentDisconnectGraceSec = null;
+    showAttackHitBanner = false;
 
     const start = Point(GameConfig.mapSize ~/ 2, GameConfig.mapSize ~/ 2);
     dir = Direction.right;

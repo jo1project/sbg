@@ -6,8 +6,8 @@ class GameConfig {
   static const previewDelayMs = 1000;
   static const energyCap = 10;
   static const initialSnakeLength = 4;
-  static const moveTickMs = 200; // 一般移動速度(格/次),非規格明定數值,先估計
-  static const speedupTickMs = 110; // 加速效果下的移動間隔
+  static const moveTickMs = 300; // 一般移動速度(格/次),非規格明定數值,先估計
+  static const speedupTickMs = 210; // 加速效果下的移動間隔
 }
 
 // C2S / S2C 事件名稱字串,對應 server/src/events.js
