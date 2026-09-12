@@ -4,17 +4,22 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../game/character_sprites.dart';
 import '../game/map_sprites.dart';
+import '../models/game_map.dart';
 import '../models/point.dart';
 
-// 人物/障礙物視覺上放大成幾格大小(格子仍是原本的碰撞格,只是圖案畫得比格子大、
+// 蛇身視覺上放大成幾格大小(格子仍是原本的碰撞格,只是圖案畫得比格子大、
 // 蓋過鄰近格子,做出Q版放大的效果)
 const double _spriteScale = 3.0;
 
-// 棋盤繪製:背景 + 障礙物 + 蛇身 + 食物(無格線)。blind 效果時只露出蛇頭前方兩格,其餘蓋黑。
+// 障礙物圖示相對格子的放大倍率(0x72 DungeonTilesetII的圖案本身比16x16高,錨定格子底部往上延伸,
+// 做出類似深度的堆疊感,見 _drawObstacle)
+const double _obstacleScale = 1.4;
+
+// 棋盤繪製:地板+牆體(依地圖房間/走廊佈局)+障礙物+蛇身+食物。blind 效果時只露出蛇頭前方兩格,其餘蓋黑。
 class Board extends StatelessWidget {
   final List<Point> snake;
   final List<Point> foods;
-  final List<Point> obstacles;
+  final GameMap? map;
   final Direction dir;
   final bool blind;
   final int moveTick;
@@ -23,7 +28,7 @@ class Board extends StatelessWidget {
     super.key,
     required this.snake,
     required this.foods,
-    required this.obstacles,
+    required this.map,
     required this.dir,
     required this.blind,
     required this.moveTick,
@@ -37,7 +42,7 @@ class Board extends StatelessWidget {
       painter: _BoardPainter(
         snake: snake,
         foods: foods,
-        obstacles: obstacles,
+        map: map,
         dir: dir,
         blind: blind,
         moveTick: moveTick,
@@ -50,7 +55,7 @@ class Board extends StatelessWidget {
 class _BoardPainter extends CustomPainter {
   final List<Point> snake;
   final List<Point> foods;
-  final List<Point> obstacles;
+  final GameMap? map;
   final Direction dir;
   final bool blind;
   final int moveTick;
@@ -58,7 +63,7 @@ class _BoardPainter extends CustomPainter {
   _BoardPainter({
     required this.snake,
     required this.foods,
-    required this.obstacles,
+    required this.map,
     required this.dir,
     required this.blind,
     required this.moveTick,
@@ -74,29 +79,115 @@ class _BoardPainter extends CustomPainter {
     return Rect.fromLTWH(cx - s / 2, cy - s / 2, s, s);
   }
 
-  // 白色外框沿著圖案本身的輪廓(不透明像素)畫,不是格子的矩形框:
-  // 做法是先用白色貼幾份位移過的圖(只保留alpha輪廓),再疊上原圖蓋住中間
-  void _drawOutlinedIcon(Canvas canvas, ui.Image icon, Rect dest) {
-    final src = Rect.fromLTWH(0, 0, icon.width.toDouble(), icon.height.toDouble());
-    final outlinePaint = Paint()
-      ..filterQuality = FilterQuality.none
-      ..colorFilter = const ColorFilter.mode(Colors.white, BlendMode.srcIn);
-    const o = 2.5;
-    for (final d in const [
-      Offset(-o, 0), Offset(o, 0), Offset(0, -o), Offset(0, o),
-      Offset(-o, -o), Offset(o, -o), Offset(-o, o), Offset(o, o),
-    ]) {
-      canvas.drawImageRect(icon, src, dest.shift(d), outlinePaint);
-    }
-    canvas.drawImageRect(icon, src, dest, Paint()..filterQuality = FilterQuality.none);
-  }
-
   bool _visible(Point p) {
     if (!blind || snake.isEmpty) return true;
     final head = snake.first;
     final ahead1 = head + dir.delta;
     final ahead2 = ahead1 + dir.delta;
     return p == head || p == ahead1 || p == ahead2;
+  }
+
+  void _drawImageInCell(Canvas canvas, ui.Image img, int x, double cellW, double cellH, int y, {bool flipY = false}) {
+    final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+    final dest = Rect.fromLTWH(x * cellW, y * cellH, cellW, cellH);
+    final paint = Paint()..filterQuality = FilterQuality.none;
+    if (!flipY) {
+      canvas.drawImageRect(img, src, dest, paint);
+      return;
+    }
+    // 素材包沒有專門的底牆圖磚,底部邊界以頂牆圖磚上下翻轉湊成(規格文件2.5節)
+    canvas.save();
+    canvas.translate(dest.left, dest.top + dest.height);
+    canvas.scale(1, -1);
+    canvas.drawImageRect(img, src, Rect.fromLTWH(0, 0, dest.width, dest.height), paint);
+    canvas.restore();
+  }
+
+  void _paintFloors(Canvas canvas, GameMap map, double cellW, double cellH) {
+    for (final z in [...map.rooms, ...map.corridors]) {
+      for (var x = z.x0; x <= z.x1; x++) {
+        for (var y = z.y0; y <= z.y1; y++) {
+          _drawImageInCell(canvas, MapSprites.floorFor(x, y), x, cellW, cellH, y);
+        }
+      }
+    }
+  }
+
+  // 房間邊界畫牆(頂/底/左/右),遇到房間跟走廊相接的開口(該格本身可通行)就跳過不畫,
+  // 形成走廊出入口。走廊本身不畫這種實體牆,只在上下邊緣加一條薄邊界線(見 _paintCorridorEdges)。
+  void _paintRoomWalls(Canvas canvas, GameMap map, MapZone room, double cellW, double cellH) {
+    void wall(int x, int y, ui.Image? img, {bool flipY = false}) {
+      if (img == null) return;
+      if (x < 0 || y < 0 || (map.gridCols > 0 && x >= map.gridCols) || (map.gridRows > 0 && y >= map.gridRows)) return;
+      if (map.isWalkable(Point(x, y))) return; // 開口(接走廊),不畫牆
+      _drawImageInCell(canvas, img, x, cellW, cellH, y, flipY: flipY);
+    }
+
+    final topY = room.y0 - 1;
+    final botY = room.y1 + 1;
+    wall(room.x0 - 1, topY, MapSprites.wallTopLeft);
+    wall(room.x1 + 1, topY, MapSprites.wallTopRight);
+    wall(room.x0 - 1, botY, MapSprites.wallTopLeft, flipY: true);
+    wall(room.x1 + 1, botY, MapSprites.wallTopRight, flipY: true);
+    for (var x = room.x0; x <= room.x1; x++) {
+      wall(x, topY, MapSprites.wallTopMid);
+      wall(x, botY, MapSprites.wallTopMid, flipY: true);
+    }
+    for (var y = room.y0; y <= room.y1; y++) {
+      wall(room.x0 - 1, y, MapSprites.wallLeft);
+      wall(room.x1 + 1, y, MapSprites.wallRight);
+    }
+  }
+
+  // 走廊淨空、不畫實體牆,僅在上下邊緣(非房間開口處)加一條薄白線標示地板邊界,
+  // 方便辨識可移動範圍(規格文件2.4節)。
+  // ponytail: 用半透明線條示意「薄邊界」,沒有另外接0x72的wall_edge_*薄磚素材,
+  // 若之後覺得視覺不夠融入地牢風格,可換成該素材包的 wall_edge_mid_left/right。
+  void _paintCorridorEdges(Canvas canvas, GameMap map, double cellW, double cellH) {
+    final paint = Paint()..color = Colors.white24;
+    const thickness = 2.0;
+    for (final c in map.corridors) {
+      for (var x = c.x0; x <= c.x1; x++) {
+        if (!map.isWalkable(Point(x, c.y0 - 1))) {
+          canvas.drawRect(Rect.fromLTWH(x * cellW, c.y0 * cellH - thickness, cellW, thickness), paint);
+        }
+        if (!map.isWalkable(Point(x, c.y1 + 1))) {
+          canvas.drawRect(Rect.fromLTWH(x * cellW, (c.y1 + 1) * cellH - thickness, cellW, thickness), paint);
+        }
+      }
+    }
+  }
+
+  ui.Image? _obstacleImage(MapObstacle o) {
+    switch (o.type) {
+      case "crate":
+        return MapSprites.crate;
+      case "column":
+        return MapSprites.column;
+      case "chest":
+        return MapSprites.chest;
+      case "monster":
+        final frames = MapSprites.monsterIdle[o.species];
+        if (frames == null || frames.isEmpty) return null;
+        // 待機動畫跟moveTick同步循環播放,不另外開獨立計時器(見board.dart文件頂端註解)
+        return frames[moveTick % frames.length];
+      default:
+        return null;
+    }
+  }
+
+  // 障礙物圖案本身比16x16高(木箱/石柱/怪物立繪),錨定格子底部往上延伸,
+  // 做出類似深度堆疊的視覺效果,而不是硬塞進單一格子裡拉伸變形。
+  void _drawObstacle(Canvas canvas, ui.Image img, Point cell, double cellW, double cellH) {
+    final cellSize = math.min(cellW, cellH);
+    final scale = cellSize / img.width.toDouble() * _obstacleScale;
+    final w = img.width * scale;
+    final h = img.height * scale;
+    final cx = cell.x * cellW + cellW / 2;
+    final bottomY = cell.y * cellH + cellH;
+    final dest = Rect.fromLTWH(cx - w / 2, bottomY - h, w, h);
+    final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+    canvas.drawImageRect(img, src, dest, Paint()..filterQuality = FilterQuality.none);
   }
 
   @override
@@ -107,31 +198,21 @@ class _BoardPainter extends CustomPainter {
     // 放大後的障礙物/人物圖案可能蓋過地圖邊界外,裁切掉超出棋盤範圍的部分
     canvas.clipRect(boardRect);
 
-    final bg = MapSprites.background;
-    if (bg != null) {
-      // 小塊紋理重複鋪滿,不整張圖拉伸變形:貼磚大小固定抓「幾格寬」,
-      // 用ImageShader等比例縮放後repeat,維持紋理本身比例。
-      final tileSize = math.min(cellW, cellH) * 3;
-      final scale = tileSize / bg.width.toDouble();
-      final matrix = Matrix4.identity()..scale(scale, scale);
-      final shader = ui.ImageShader(bg, ui.TileMode.repeated, ui.TileMode.repeated, matrix.storage);
-      canvas.drawRect(boardRect, Paint()..shader = shader);
-    } else {
-      // 素材尚未載入完成時的備援畫法
-      canvas.drawRect(boardRect, Paint()..color = const Color(0xFF10231A));
-    }
+    // 房間/走廊以外一律是黑色虛空(規格文件7.7節),先鋪底色再疊地板/牆
+    canvas.drawRect(boardRect, Paint()..color = const Color(0xFF000000));
 
-    final obstacleIcons = MapSprites.obstacleIcons;
-    for (final o in obstacles) {
-      if (!_visible(o)) continue;
-      final dest = _enlargedCell(o, cellW, cellH);
-      if (obstacleIcons.isNotEmpty) {
-        // 座標決定固定圖示,同一格每次重繪都一樣、整局不變動
-        final icon = obstacleIcons[(o.x * 31 + o.y * 17).abs() % obstacleIcons.length];
-        _drawOutlinedIcon(canvas, icon, dest);
-      } else {
-        // 素材尚未載入完成時的備援畫法
-        canvas.drawRect(dest.deflate(math.min(cellW, cellH) * 0.3), Paint()..color = Colors.white54);
+    final map = this.map;
+    if (map != null) {
+      _paintFloors(canvas, map, cellW, cellH);
+      for (final room in map.rooms) {
+        _paintRoomWalls(canvas, map, room, cellW, cellH);
+      }
+      _paintCorridorEdges(canvas, map, cellW, cellH);
+
+      for (final o in map.obstacles) {
+        if (!_visible(o.pos)) continue;
+        final img = _obstacleImage(o);
+        if (img != null) _drawObstacle(canvas, img, o.pos, cellW, cellH);
       }
     }
 
@@ -187,7 +268,7 @@ class _BoardPainter extends CustomPainter {
   bool shouldRepaint(covariant _BoardPainter old) =>
       old.snake != snake ||
       old.foods != foods ||
-      old.obstacles != obstacles ||
+      old.map != map ||
       old.dir != dir ||
       old.blind != blind ||
       old.moveTick != moveTick;

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
+import '../models/game_map.dart';
 import '../models/point.dart';
 import '../net/socket_service.dart';
 import 'collision.dart';
@@ -62,7 +63,7 @@ class GameController extends ChangeNotifier {
   int moveTick = 0; // 每次實際移動+1,驅動走路動畫的欄位切換(見 CharacterSprites)
 
   final Map<String, Point> myFoods = {};
-  List<Point> obstacles = []; // 伺服器房間建立時一次性推送,整局不變動,見 room.js spawnInitialObstacles
+  GameMap? map; // 固定地圖池抽到的地圖,伺服器房間建立時一次性推送,整局不變動,見 room.js sendMapToPlayer
   Point? oppFuzzyPos;
 
   ActiveEffect? myEffect;
@@ -281,13 +282,8 @@ class GameController extends ChangeNotifier {
         break;
 
       case Ev.obstacleLayout:
-        final list = msg["obstacles"] as List<dynamic>?;
-        if (list != null) {
-          obstacles = list
-              .map((o) => Point.fromJson(o as Map<String, dynamic>?))
-              .whereType<Point>()
-              .toList();
-        }
+        final parsed = GameMap.fromJson(msg["map"] as Map<String, dynamic>?);
+        if (parsed != null) map = parsed;
         break;
 
       case Ev.opponentPositionFuzzy:
@@ -422,7 +418,7 @@ class GameController extends ChangeNotifier {
     myEnergy = 0;
     oppEnergy = 0;
     // 注意:伺服器在 match_found 之前就會送 food_spawned / obstacle_layout(Room建構時),
-    // 這裡不能清 myFoods / obstacles,否則會把剛到的初始資料清掉
+    // 這裡不能清 myFoods / map,否則會把剛到的初始資料清掉
     oppFuzzyPos = null;
     myEffect = null;
     _growthPending = 0;
@@ -434,7 +430,9 @@ class GameController extends ChangeNotifier {
     opponentDisconnectGraceSec = null;
     showAttackHitBanner = false;
 
-    const start = Point(GameConfig.mapWidth ~/ 2, GameConfig.mapHeight ~/ 2);
+    // 重生點固定在該玩家抽到的地圖房間內(見map.spawnPos);map理應已在match_found之前送達,
+    // 萬一還沒到(不應發生)就退回地圖正中央,避免蛇身座標缺值
+    final start = map?.spawnPos ?? Point(GameConfig.mapWidth ~/ 2, GameConfig.mapHeight ~/ 2);
     dir = Direction.right;
     _pendingDir = null;
     mySnake = List.generate(GameConfig.initialSnakeLength, (i) => Point(start.x - i, start.y));
@@ -448,7 +446,7 @@ class GameController extends ChangeNotifier {
     opponentId = null;
     gameOver = null;
     myFoods.clear();
-    obstacles = [];
+    map = null;
     _bannerClearTimer?.cancel();
     banner = null;
     _stopMatchTimers();
@@ -482,7 +480,7 @@ class GameController extends ChangeNotifier {
     final newHead = head + nextDir.delta;
     final grow = _growthPending > 0;
 
-    final death = checkDeath(newHead, mySnake, grow: grow, obstacles: obstacles);
+    final death = checkDeath(newHead, mySnake, grow: grow, map: map);
     if (death.isDead) {
       _moveTimer?.cancel();
       _socket.send(Ev.deathReport, {

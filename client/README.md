@@ -13,7 +13,7 @@
 - 對手能量條、模糊小地圖(每2秒更新)、攻擊警示外框
 - Random效果套用(加速影響移動間隔、暫停凍結操作、致盲遮蔽畫面)
 - 防Spam自懲、對手斷線倒數、Double KO/勝負結果畫面
-- 蛇頭/蛇身像素角色動畫、地圖障礙物(素描風羊皮紙地圖背景+障礙物圖示,撞到判死亡)(見下方「美術素材」)
+- 蛇頭/蛇身像素角色動畫、固定地圖池(手工設計房間+走廊+障礙物,雙方各自獨立隨機抽一張,撞到障礙物或牆體判死亡)(見下方「美術素材」)
 - 地圖滿版鋪整個畫面(`widgets/board.dart` 沒有AspectRatio限制,格子按畫面實際寬高分開計算),
   能量條/小地圖/搖桿/攻擊鍵都是半透明浮在地圖上的overlay(`screens/game_screen.dart`)
 
@@ -37,22 +37,34 @@
 - 蛇頭用實際移動方向;蛇身每一節用「朝向前一節」的方向(`Direction.fromDelta`),做出跟隨感
 - 素材圖片異步載入(`CharacterSprites.load()`,在 `main.dart` 啟動時觸發),載入完成前用原本的色塊當備援畫法
 
-**地圖**:`assets/map/background.png` 是 Kenney Cartography Pack(CC0)的 `parchmentAncient` 羊皮紙
-紋理。地圖是 12欄(x軸)x 24列(y軸)的直向比例棋盤(`GameConfig.mapWidth`/`mapHeight`,非正方形),
-背景紋理用 `ui.ImageShader` 等比例縮放成小塊貼磚後 `TileMode.repeated` 重複鋪滿(見 `board.dart` 的
-`paint()`),不是整張圖硬拉伸貼滿,維持紋理本身比例。`assets/map/obstacle_*.png` 是同包裡的素描風
-山/樹/灌木小圖示,座標由伺服器 `room.js` 的 `spawnInitialObstacles()` 在房間建立時各自獨立隨機生成
-(見規格2.3節),採「稀疏地標式」規則:目標7個、任兩個曼哈頓距離≥6格、只能生成在地圖邊緣(內縮28%
-的中央地帶禁止放置)、蛇重生點周圍3格半徑安全區禁止放置,嘗試生成法最多800次湊不滿就用實際數量。
-已實作 `obstacle_layout` 事件+撞到判死亡+伺服器端碰撞驗證,整局不變動,一格一個固定圖示(依座標決定,
-不是每次重繪隨機換)。載入邏輯在 `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用
-`lib/game/sprite_loader.dart` 的圖片載入函式。
+**地圖**:改採**固定地圖池架構**(取代先前的即時隨機演算法),素材是 `assets/dungeon/` 下的
+[0x72 DungeonTilesetII](https://0x72.itch.io/dungeontileset-ii)(CC0授權)石磚地牢風格。地圖是
+12欄(x軸)x 24列(y軸)的直向比例棋盤(`GameConfig.mapWidth`/`mapHeight`),資料格式由伺服器
+`server/maps/*.json` 定義(見規格文件7.7節):房間+走廊的矩形範圍(`rooms`/`corridors`)、蛇重生點
+(`spawnPos`)、障礙物清單(`obstacles`,含 `type`/`species`)。伺服器啟動時把整個地圖池讀進記憶體
+(`server/src/maps.js`),每次配對成功時**雙方各自獨立隨機抽一張**(可能拿到不同張),透過
+`obstacle_layout` 事件把整包地圖資料送給該玩家自己(`{ map }`),解析成 `lib/models/game_map.dart`
+的 `GameMap`。目前只有「地圖1」一張定案地圖(`server/maps/map_01.json`):4個房間、3段錯位走廊。
 
-**放大與外框**(`lib/widgets/board.dart`):人物每一節、障礙物圖示都用 `_spriteScale`(3倍)放大畫,
-邊長固定用 `min(cellW, cellH)` 算(維持正方形,不會因為棋盤非正方形而被拉伸變形),中心點對齊原本的
-格子中心,蓋過鄰近格子,格線也拿掉了。障礙物的白色外框是沿著圖示本身不透明像素的輪廓畫
-(`_drawOutlinedIcon`:先用白色疊畫幾份位移過的圖只留下輪廓,再蓋上原圖),不是格子的矩形框。
-蛇身改成從尾畫到頭,確保放大後蛇頭蓋在身體上面。
+- **地板**:房間/走廊範圍內逐格鋪 `floor_1`~`floor_8`(約88%用`floor_1`,其餘12%依座標雜湊固定選一張
+  裂痕/苔蘚變化貼圖,同一格每次重繪都一樣,見 `MapSprites.floorFor()`),範圍以外一律黑色虛空
+- **牆體**:沿每個房間矩形外緣一圈用 `wall_top_left/mid/right`、`wall_left/right` 拼牆,素材包沒有
+  專門的底牆圖磚,底部邊界用頂牆圖磚上下翻轉湊成(見 `board.dart` 的 `_paintRoomWalls()`);牆體外緣
+  若剛好是走廊銜接的開口(該格本身可通行)就跳過不畫,自然形成出入口
+- **走廊**:不畫實體牆、維持淨空,只在上下邊緣(非開口處)疊一條半透明白線標示地板邊界
+  (`_paintCorridorEdges()`,ponytail簡化版,沒有另外接素材包的`wall_edge_*`薄磚)
+- **障礙物**(4類,見規格2.4節):`crate`木箱、`column`石柱、`chest`寶箱(`chest_full_open_anim_f0`)、
+  `monster`怪物哨兵(固定原地不動,4格待機動畫循環播放,物種`species`由伺服器從
+  goblin/skelet/imp/chort隨機挑一種,動畫frame跟`moveTick`同步循環,見`MapSprites.monsterIdle`)。
+  圖案本身比16x16高(木箱/石柱/怪物立繪),錨定格子底部往上延伸畫,不是硬塞進單一格子裡拉伸
+  (`_drawObstacle()`)。撞到障礙物或牆體(含房間/走廊範圍外的虛空)皆判死亡,伺服器端也會驗證
+  (`room.js` 的 `validateDeathReport()` 吃地圖資料)。載入邏輯在 `lib/game/map_sprites.dart`,跟
+  `CharacterSprites` 共用 `lib/game/sprite_loader.dart` 的圖片載入函式。
+
+**放大與外框**(`lib/widgets/board.dart`):蛇身每一節用 `_spriteScale`(3倍)放大畫,邊長固定用
+`min(cellW, cellH)` 算(維持正方形,不會因為棋盤非正方形而被拉伸變形),中心點對齊原本的格子中心,
+蓋過鄰近格子,格線也拿掉了。障礙物改用 `_obstacleScale`(1.4倍)錨定格子底部放大(見上方「地圖」),
+沒有再疊白色外框(0x72素材本身輪廓對比已經夠清楚)。蛇身改成從尾畫到頭,確保放大後蛇頭蓋在身體上面。
 
 ## 開發
 

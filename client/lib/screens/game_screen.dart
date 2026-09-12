@@ -31,7 +31,7 @@ class GameScreen extends StatelessWidget {
                 child: Board(
                   snake: c.mySnake,
                   foods: c.myFoods.values.toList(),
-                  obstacles: c.obstacles,
+                  map: c.map,
                   dir: c.dir,
                   blind: c.isBlind,
                   moveTick: c.moveTick,

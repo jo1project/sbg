@@ -1,13 +1,30 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snake_battle/game/collision.dart';
+import 'package:snake_battle/models/game_map.dart';
 import 'package:snake_battle/models/point.dart';
 
 void main() {
-  test('撞牆:座標超出地圖邊界(x:0~11, y:0~23)判定死亡', () {
+  test('撞牆:座標超出地圖邊界(x:0~11, y:0~23)判定死亡(map為null時退化成只檢查邊界)', () {
     expect(checkDeath(const Point(-1, 5), const [], grow: false).cause, "wall");
     expect(checkDeath(const Point(12, 5), const [], grow: false).cause, "wall");
     expect(checkDeath(const Point(5, 24), const [], grow: false).cause, "wall");
     expect(checkDeath(const Point(11, 23), const [Point(11, 22)], grow: false).cause, null);
+  });
+
+  const testMap = GameMap(
+    mapId: "test",
+    gridCols: 12,
+    gridRows: 24,
+    rooms: [MapZone(x0: 1, x1: 10, y0: 1, y1: 4)],
+    corridors: [],
+    spawnPos: Point(5, 2),
+    obstacles: [MapObstacle(Point(3, 3), "crate", null)],
+  );
+
+  test('撞牆:落在地圖的房間/走廊範圍之外(黑色虛空)也算撞牆,即使沒超出地圖邊界', () {
+    expect(checkDeath(const Point(5, 2), const [], grow: false, map: testMap).cause, null, reason: "房間內部不算撞牆");
+    expect(checkDeath(const Point(0, 2), const [], grow: false, map: testMap).cause, "wall", reason: "房間範圍外的地板內座標算撞牆");
+    expect(checkDeath(const Point(5, 15), const [], grow: false, map: testMap).cause, "wall", reason: "沒有房間/走廊覆蓋的座標算撞牆");
   });
 
   test('撞自己:新頭落在身體格子上(不含即將讓出的尾巴)判定死亡', () {
@@ -20,10 +37,9 @@ void main() {
     expect(checkDeath(const Point(5, 8), body, grow: true).cause, "self");
   });
 
-  test('撞障礙物:新頭落在障礙物座標上判定死亡', () {
-    const obstacles = [Point(3, 3), Point(3, 4)];
-    expect(checkDeath(const Point(3, 3), const [], grow: false, obstacles: obstacles).cause, "obstacle");
-    expect(checkDeath(const Point(3, 5), const [], grow: false, obstacles: obstacles).cause, null);
+  test('撞障礙物:新頭落在地圖障礙物座標上判定死亡', () {
+    expect(checkDeath(const Point(3, 3), const [], grow: false, map: testMap).cause, "obstacle");
+    expect(checkDeath(const Point(3, 4), const [], grow: false, map: testMap).cause, null);
   });
 
   test('advanceSnake:非成長移除尾巴,成長保留尾巴', () {
