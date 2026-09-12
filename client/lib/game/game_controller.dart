@@ -434,7 +434,7 @@ class GameController extends ChangeNotifier {
     opponentDisconnectGraceSec = null;
     showAttackHitBanner = false;
 
-    const start = Point(GameConfig.mapSize ~/ 2, GameConfig.mapSize ~/ 2);
+    const start = Point(GameConfig.mapWidth ~/ 2, GameConfig.mapHeight ~/ 2);
     dir = Direction.right;
     _pendingDir = null;
     mySnake = List.generate(GameConfig.initialSnakeLength, (i) => Point(start.x - i, start.y));

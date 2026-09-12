@@ -91,7 +91,7 @@ class _MiniMap extends StatelessWidget {
       ),
       child: pos == null
           ? null
-          : CustomPaint(painter: _DotPainter(pos!.x / GameConfig.mapSize, pos!.y / GameConfig.mapSize)),
+          : CustomPaint(painter: _DotPainter(pos!.x / GameConfig.mapWidth, pos!.y / GameConfig.mapHeight)),
     );
   }
 }

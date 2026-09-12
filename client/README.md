@@ -38,15 +38,20 @@
 - 素材圖片異步載入(`CharacterSprites.load()`,在 `main.dart` 啟動時觸發),載入完成前用原本的色塊當備援畫法
 
 **地圖**:`assets/map/background.png` 是 Kenney Cartography Pack(CC0)的 `parchmentAncient` 羊皮紙
-紋理,固定鋪滿整個棋盤(對應規格2.4節)。`assets/map/obstacle_*.png` 是同包裡的素描風山/樹/灌木小圖示,
-座標由伺服器 `room.js` 的 `spawnInitialObstacles()` 在房間建立時各自獨立隨機生成(見規格2.3節,已實作
-`obstacle_layout` 事件+撞到判死亡+伺服器端碰撞驗證),整局不變動,一格一個固定圖示(依座標決定,不是
-每次重繪隨機換)。載入邏輯在 `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用
+紋理。地圖是 12欄(x軸)x 24列(y軸)的直向比例棋盤(`GameConfig.mapWidth`/`mapHeight`,非正方形),
+背景紋理用 `ui.ImageShader` 等比例縮放成小塊貼磚後 `TileMode.repeated` 重複鋪滿(見 `board.dart` 的
+`paint()`),不是整張圖硬拉伸貼滿,維持紋理本身比例。`assets/map/obstacle_*.png` 是同包裡的素描風
+山/樹/灌木小圖示,座標由伺服器 `room.js` 的 `spawnInitialObstacles()` 在房間建立時各自獨立隨機生成
+(見規格2.3節),採「稀疏地標式」規則:目標7個、任兩個曼哈頓距離≥6格、只能生成在地圖邊緣(內縮28%
+的中央地帶禁止放置)、蛇重生點周圍3格半徑安全區禁止放置,嘗試生成法最多800次湊不滿就用實際數量。
+已實作 `obstacle_layout` 事件+撞到判死亡+伺服器端碰撞驗證,整局不變動,一格一個固定圖示(依座標決定,
+不是每次重繪隨機換)。載入邏輯在 `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用
 `lib/game/sprite_loader.dart` 的圖片載入函式。
 
 **放大與外框**(`lib/widgets/board.dart`):人物每一節、障礙物圖示都用 `_spriteScale`(3倍)放大畫,
-中心點對齊原本的格子中心,蓋過鄰近格子,格線也拿掉了。障礙物的白色外框是沿著圖示本身不透明像素的
-輪廓畫(`_drawOutlinedIcon`:先用白色疊畫幾份位移過的圖只留下輪廓,再蓋上原圖),不是格子的矩形框。
+邊長固定用 `min(cellW, cellH)` 算(維持正方形,不會因為棋盤非正方形而被拉伸變形),中心點對齊原本的
+格子中心,蓋過鄰近格子,格線也拿掉了。障礙物的白色外框是沿著圖示本身不透明像素的輪廓畫
+(`_drawOutlinedIcon`:先用白色疊畫幾份位移過的圖只留下輪廓,再蓋上原圖),不是格子的矩形框。
 蛇身改成從尾畫到頭,確保放大後蛇頭蓋在身體上面。
 
 ## 開發

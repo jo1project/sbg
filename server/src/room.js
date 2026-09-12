@@ -38,28 +38,36 @@ export class Room {
 
   // ---------- 障礙物(靜態,整局不變動,見規格2.3節) ----------
 
+  // 稀疏地標式障礙物:數量少、彼此有最小距離、只靠邊緣生成、避開中央活動空間與重生安全區。
+  // 用嘗試生成法湊到目標數量,總嘗試次數封頂,湊不滿就用實際生成到的數量(不無限重試卡死)。
   spawnInitialObstacles() {
     // 蛇初始重生座標(對應client端 GameController._startMatch 的起始位置),障礙物需避開
-    const startX = Math.floor(CONFIG.MAP_SIZE / 2);
-    const startY = Math.floor(CONFIG.MAP_SIZE / 2);
+    const startX = Math.floor(CONFIG.MAP_WIDTH / 2);
+    const startY = Math.floor(CONFIG.MAP_HEIGHT / 2);
     const spawnCells = [];
     for (let i = 0; i < CONFIG.INITIAL_SNAKE_LENGTH; i++) spawnCells.push({ x: startX - i, y: startY });
 
+    // 中央排除地帶:以地圖中心為準內縮 OBSTACLE_CENTER_INSET_RATIO,範圍內禁止放障礙物
+    const insetX = CONFIG.MAP_WIDTH * CONFIG.OBSTACLE_CENTER_INSET_RATIO;
+    const insetY = CONFIG.MAP_HEIGHT * CONFIG.OBSTACLE_CENTER_INSET_RATIO;
+    const centralXMin = insetX;
+    const centralXMax = CONFIG.MAP_WIDTH - insetX;
+    const centralYMin = insetY;
+    const centralYMax = CONFIG.MAP_HEIGHT - insetY;
+
     for (const playerId of this.playerIds) {
       const list = this.obstacles[playerId];
-      for (let i = 0; i < CONFIG.OBSTACLE_COUNT; i++) {
-        let pos;
-        let attempts = 0;
-        do {
-          pos = {
-            x: Math.floor(Math.random() * CONFIG.MAP_SIZE),
-            y: Math.floor(Math.random() * CONFIG.MAP_SIZE),
-          };
-          attempts++;
-        } while (
-          attempts < 50 &&
-          (spawnCells.some((c) => c.x === pos.x && c.y === pos.y) || list.some((o) => o.x === pos.x && o.y === pos.y))
-        );
+      let attempts = 0;
+      while (list.length < CONFIG.OBSTACLE_COUNT && attempts < CONFIG.OBSTACLE_MAX_ATTEMPTS) {
+        attempts++;
+        const pos = {
+          x: Math.floor(Math.random() * CONFIG.MAP_WIDTH),
+          y: Math.floor(Math.random() * CONFIG.MAP_HEIGHT),
+        };
+        if (pos.x >= centralXMin && pos.x < centralXMax && pos.y >= centralYMin && pos.y < centralYMax) continue;
+        if (Math.hypot(pos.x - startX, pos.y - startY) <= CONFIG.OBSTACLE_SAFE_RADIUS) continue;
+        if (spawnCells.some((c) => c.x === pos.x && c.y === pos.y)) continue;
+        if (list.some((o) => Math.abs(o.x - pos.x) + Math.abs(o.y - pos.y) < CONFIG.OBSTACLE_MIN_DIST)) continue;
         list.push(pos);
       }
       this.players[playerId].send(S2C.OBSTACLE_LAYOUT, { obstacles: list });
@@ -91,8 +99,8 @@ export class Room {
     let attempts = 0;
     do {
       pos = {
-        x: Math.floor(Math.random() * CONFIG.MAP_SIZE),
-        y: Math.floor(Math.random() * CONFIG.MAP_SIZE),
+        x: Math.floor(Math.random() * CONFIG.MAP_WIDTH),
+        y: Math.floor(Math.random() * CONFIG.MAP_HEIGHT),
       };
       attempts++;
     } while (occupied(pos) && attempts < 50); // 避免蛇身佔滿地圖時無窮迴圈
@@ -309,7 +317,7 @@ export class Room {
   validateDeathReport(playerId, cause, headPos, bodyCells) {
     if (!headPos || typeof headPos.x !== "number" || typeof headPos.y !== "number") return false;
     if (cause === "wall") {
-      return headPos.x < 0 || headPos.x >= CONFIG.MAP_SIZE || headPos.y < 0 || headPos.y >= CONFIG.MAP_SIZE;
+      return headPos.x < 0 || headPos.x >= CONFIG.MAP_WIDTH || headPos.y < 0 || headPos.y >= CONFIG.MAP_HEIGHT;
     }
     if (cause === "self") {
       return Array.isArray(bodyCells) && bodyCells.some((c) => c && c.x === headPos.x && c.y === headPos.y);

@@ -3,11 +3,11 @@ import 'package:snake_battle/game/collision.dart';
 import 'package:snake_battle/models/point.dart';
 
 void main() {
-  test('撞牆:座標超出地圖邊界(0~19)判定死亡', () {
+  test('撞牆:座標超出地圖邊界(x:0~11, y:0~23)判定死亡', () {
     expect(checkDeath(const Point(-1, 5), const [], grow: false).cause, "wall");
-    expect(checkDeath(const Point(20, 5), const [], grow: false).cause, "wall");
-    expect(checkDeath(const Point(5, 20), const [], grow: false).cause, "wall");
-    expect(checkDeath(const Point(19, 19), const [Point(19, 18)], grow: false).cause, null);
+    expect(checkDeath(const Point(12, 5), const [], grow: false).cause, "wall");
+    expect(checkDeath(const Point(5, 24), const [], grow: false).cause, "wall");
+    expect(checkDeath(const Point(11, 23), const [Point(11, 22)], grow: false).cause, null);
   });
 
   test('撞自己:新頭落在身體格子上(不含即將讓出的尾巴)判定死亡', () {

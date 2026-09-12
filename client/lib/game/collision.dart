@@ -13,7 +13,7 @@ class DeathCheck {
 // 所以不算撞自己;成長時尾巴不動,要算進碰撞檢查。
 // obstacles 是伺服器在房間建立時生成、只給這位玩家自己的障礙物座標(見 GameController.obstacles)。
 DeathCheck checkDeath(Point newHead, List<Point> body, {required bool grow, List<Point> obstacles = const []}) {
-  if (newHead.x < 0 || newHead.x >= GameConfig.mapSize || newHead.y < 0 || newHead.y >= GameConfig.mapSize) {
+  if (newHead.x < 0 || newHead.x >= GameConfig.mapWidth || newHead.y < 0 || newHead.y >= GameConfig.mapHeight) {
     return const DeathCheck("wall");
   }
   final bodyToCheck = grow ? body : body.sublist(0, body.length - 1);

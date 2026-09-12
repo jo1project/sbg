@@ -101,20 +101,21 @@ class _BoardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cellW = size.width / GameConfig.mapSize;
-    final cellH = size.height / GameConfig.mapSize;
+    final cellW = size.width / GameConfig.mapWidth;
+    final cellH = size.height / GameConfig.mapHeight;
     final boardRect = Rect.fromLTWH(0, 0, size.width, size.height);
     // 放大後的障礙物/人物圖案可能蓋過地圖邊界外,裁切掉超出棋盤範圍的部分
     canvas.clipRect(boardRect);
 
     final bg = MapSprites.background;
     if (bg != null) {
-      canvas.drawImageRect(
-        bg,
-        Rect.fromLTWH(0, 0, bg.width.toDouble(), bg.height.toDouble()),
-        boardRect,
-        Paint(),
-      );
+      // 小塊紋理重複鋪滿,不整張圖拉伸變形:貼磚大小固定抓「幾格寬」,
+      // 用ImageShader等比例縮放後repeat,維持紋理本身比例。
+      final tileSize = math.min(cellW, cellH) * 3;
+      final scale = tileSize / bg.width.toDouble();
+      final matrix = Matrix4.identity()..scale(scale, scale);
+      final shader = ui.ImageShader(bg, ui.TileMode.repeated, ui.TileMode.repeated, matrix.storage);
+      canvas.drawRect(boardRect, Paint()..shader = shader);
     } else {
       // 素材尚未載入完成時的備援畫法
       canvas.drawRect(boardRect, Paint()..color = const Color(0xFF10231A));
@@ -172,8 +173,8 @@ class _BoardPainter extends CustomPainter {
 
     if (blind) {
       final maskPaint = Paint()..color = Colors.black;
-      for (var x = 0; x < GameConfig.mapSize; x++) {
-        for (var y = 0; y < GameConfig.mapSize; y++) {
+      for (var x = 0; x < GameConfig.mapWidth; x++) {
+        for (var y = 0; y < GameConfig.mapHeight; y++) {
           final p = Point(x, y);
           if (_visible(p)) continue;
           canvas.drawRect(Rect.fromLTWH(x * cellW, y * cellH, cellW, cellH), maskPaint);
