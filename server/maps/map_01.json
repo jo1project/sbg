@@ -1,0 +1,27 @@
+{
+  "mapId": "map_01",
+  "gridCols": 12,
+  "gridRows": 24,
+  "rooms": [
+    { "x0": 1, "x1": 10, "y0": 1,  "y1": 4  },
+    { "x0": 1, "x1": 10, "y0": 7,  "y1": 10 },
+    { "x0": 1, "x1": 10, "y0": 13, "y1": 16 },
+    { "x0": 1, "x1": 10, "y0": 19, "y1": 22 }
+  ],
+  "corridors": [
+    { "x0": 2, "x1": 5, "y0": 5,  "y1": 6  },
+    { "x0": 6, "x1": 9, "y0": 11, "y1": 12 },
+    { "x0": 3, "x1": 6, "y0": 17, "y1": 18 }
+  ],
+  "spawnPos": { "x": 5, "y": 2 },
+  "obstacles": [
+    { "x": 3, "y": 1,  "type": "crate" },
+    { "x": 8, "y": 3,  "type": "monster", "species": "chort" },
+    { "x": 2, "y": 8,  "type": "monster", "species": "skelet" },
+    { "x": 9, "y": 9,  "type": "column" },
+    { "x": 4, "y": 14, "type": "chest" },
+    { "x": 7, "y": 15, "type": "monster", "species": "goblin" },
+    { "x": 3, "y": 20, "type": "monster", "species": "imp" },
+    { "x": 8, "y": 21, "type": "crate" }
+  ]
+}

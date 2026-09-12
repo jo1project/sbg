@@ -18,12 +18,22 @@ assert.equal(room.validateDeathReport("A", "self", { x: 3, y: 3 }, [{ x: 3, y: 3
 assert.equal(room.validateDeathReport("A", "self", { x: 9, y: 9 }, [{ x: 3, y: 3 }]), false, "沒撞到身體不該算數");
 assert.equal(room.validateDeathReport("A", "self", { x: 3, y: 3 }, []), false, "空蛇身不該算撞自己");
 
-// 撞障礙物:比對該玩家自己的障礙物清單(各玩家獨立)
-room.obstacles["A"] = [{ x: 7, y: 7 }];
-room.obstacles["B"] = [{ x: 1, y: 1 }];
+// 撞障礙物:比對該玩家自己抽到的地圖的障礙物清單(各玩家獨立,見maps.js地圖池)
+room.maps["A"] = { rooms: [{ x0: 0, x1: 11, y0: 0, y1: 23 }], corridors: [], obstacles: [{ x: 7, y: 7 }] };
+room.maps["B"] = { rooms: [{ x0: 0, x1: 11, y0: 0, y1: 23 }], corridors: [], obstacles: [{ x: 1, y: 1 }] };
 assert.equal(room.validateDeathReport("A", "obstacle", { x: 7, y: 7 }), true);
 assert.equal(room.validateDeathReport("A", "obstacle", { x: 1, y: 1 }), false, "那是對方的障礙物,不是自己的");
 assert.equal(room.validateDeathReport("B", "obstacle", { x: 1, y: 1 }), true);
+
+// 撞牆/牆體:落在地圖的房間/走廊範圍之外(黑色虛空)也算撞牆,即使沒超出地圖邊界
+room.maps["A"] = {
+  rooms: [{ x0: 1, x1: 10, y0: 1, y1: 4 }],
+  corridors: [],
+  obstacles: [],
+};
+assert.equal(room.validateDeathReport("A", "wall", { x: 5, y: 2 }), false, "房間內部不算撞牆");
+assert.equal(room.validateDeathReport("A", "wall", { x: 0, y: 2 }), true, "房間範圍外的地板內座標算撞牆(牆體/虛空)");
+assert.equal(room.validateDeathReport("A", "wall", { x: 5, y: 15 }), true, "沒有房間/走廊覆蓋的座標算撞牆(黑色虛空)");
 
 // 缺資料 / 未知死因一律拒絕
 assert.equal(room.validateDeathReport("A", "wall", null), false);
@@ -44,26 +54,38 @@ const room2 = new Room("m2", realA, realB); // 配到第二場,同一組Player�
 clearInterval(room2.minimapTimer);
 assert.equal(realA.deathReportedAt, null, "新的一場對戰開始時,上一場的死亡回報記錄要被清掉");
 
-// 障礙物生成規則:稀疏地標式(數量上限、彼此曼哈頓距離下限、排除中央地帶、避開重生安全區)
-const room3 = new Room("m3", fakePlayer("C"), fakePlayer("D"));
+// 固定地圖池:房間建立時雙方各自獨立抽到一張完整地圖(mapId/rooms/corridors/obstacles),
+// 且之後生成的食物只會落在該地圖的房間/走廊可通行範圍內、不會疊在障礙物上(見 maps.js + room.js spawnFood)
+const sentMessages = { C: [], D: [] };
+const trackedPlayer = (id) => ({
+  id,
+  send: (type, payload) => sentMessages[id].push({ type, payload }),
+  snakeBody: [],
+  resetForMatch: () => {},
+});
+const room3 = new Room("m3", trackedPlayer("C"), trackedPlayer("D"));
 clearInterval(room3.minimapTimer);
-const insetX = CONFIG.MAP_WIDTH * CONFIG.OBSTACLE_CENTER_INSET_RATIO;
-const insetY = CONFIG.MAP_HEIGHT * CONFIG.OBSTACLE_CENTER_INSET_RATIO;
-const spawnX = Math.floor(CONFIG.MAP_WIDTH / 2);
-const spawnY = Math.floor(CONFIG.MAP_HEIGHT / 2);
+
+const isInZones = (map, pos) =>
+  [...map.rooms, ...map.corridors].some((z) => pos.x >= z.x0 && pos.x <= z.x1 && pos.y >= z.y0 && pos.y <= z.y1);
+
 for (const id of ["C", "D"]) {
-  const list = room3.obstacles[id];
-  assert.ok(list.length <= CONFIG.OBSTACLE_COUNT, "障礙物數量不該超過目標值");
-  for (const o of list) {
-    const inCentral = o.x >= insetX && o.x < CONFIG.MAP_WIDTH - insetX && o.y >= insetY && o.y < CONFIG.MAP_HEIGHT - insetY;
-    assert.equal(inCentral, false, "障礙物不該落在中央排除地帶");
-    assert.ok(Math.hypot(o.x - spawnX, o.y - spawnY) > CONFIG.OBSTACLE_SAFE_RADIUS, "障礙物不該落在重生安全區內");
-  }
-  for (let i = 0; i < list.length; i++) {
-    for (let j = i + 1; j < list.length; j++) {
-      const dist = Math.abs(list[i].x - list[j].x) + Math.abs(list[i].y - list[j].y);
-      assert.ok(dist >= CONFIG.OBSTACLE_MIN_DIST, "任兩障礙物曼哈頓距離需 >= 下限");
-    }
+  const map = room3.maps[id];
+  assert.ok(map && map.mapId, "每位玩家應各自抽到一張完整地圖");
+  assert.equal(map.gridCols, CONFIG.MAP_WIDTH, "地圖欄數需與伺服器MAP_WIDTH一致");
+  assert.equal(map.gridRows, CONFIG.MAP_HEIGHT, "地圖列數需與伺服器MAP_HEIGHT一致");
+
+  const mapMsg = sentMessages[id].find((m) => m.type === "obstacle_layout");
+  assert.ok(mapMsg && mapMsg.payload.map === map, "obstacle_layout事件應攜帶完整地圖資料給該玩家自己");
+
+  const foodMsgs = sentMessages[id].filter((m) => m.type === "food_spawned");
+  assert.equal(foodMsgs.length, CONFIG.FOOD_COUNT, "房間建立時應補滿恆定食物數量");
+  for (const { payload } of foodMsgs) {
+    assert.ok(isInZones(map, payload.position), "食物只能生成在房間/走廊可通行範圍內");
+    assert.ok(
+      !map.obstacles.some((o) => o.x === payload.position.x && o.y === payload.position.y),
+      "食物不該生成在障礙物座標上"
+    );
   }
 }
 

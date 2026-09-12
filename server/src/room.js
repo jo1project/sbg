@@ -1,5 +1,28 @@
 import { nanoid } from "nanoid";
 import { S2C, EFFECTS, CONFIG } from "./events.js";
+import { pickRandomMap } from "./maps.js";
+
+/**
+ * 判斷座標是否落在地圖的房間或走廊範圍內(可通行地板);範圍以外一律是不可通行的
+ * 黑色虛空/牆體,見規格文件7.7節地圖資料格式。
+ */
+function isWalkable(map, pos) {
+  if (!map || !pos) return false;
+  const zones = [...(map.rooms || []), ...(map.corridors || [])];
+  return zones.some((z) => pos.x >= z.x0 && pos.x <= z.x1 && pos.y >= z.y0 && pos.y <= z.y1);
+}
+
+/** 從地圖的房間+走廊範圍內隨機選一格可通行座標 */
+function randomWalkableCell(map) {
+  if (!map) return null;
+  const zones = [...(map.rooms || []), ...(map.corridors || [])];
+  if (zones.length === 0) return null;
+  const zone = zones[Math.floor(Math.random() * zones.length)];
+  return {
+    x: zone.x0 + Math.floor(Math.random() * (zone.x1 - zone.x0 + 1)),
+    y: zone.y0 + Math.floor(Math.random() * (zone.y1 - zone.y0 + 1)),
+  };
+}
 
 /**
  * 一場 1v1 對戰房間。
@@ -15,11 +38,13 @@ export class Room {
 
     // 模式B:雙方地圖各自獨立,食物也各玩各的,不共用同一份清單
     this.foods = { [playerA.id]: new Map(), [playerB.id]: new Map() };
-    this.obstacles = { [playerA.id]: [], [playerB.id]: [] }; // 同樣各自獨立,見規格2.3節
+    // 固定地圖池:每位玩家各自獨立隨機抽一張,雙方可能拿到不同地圖(見規格2.3節)
+    this.maps = { [playerA.id]: pickRandomMap(), [playerB.id]: pickRandomMap() };
     this.ended = false;
     this.onEnded = null; // 由外部(matchmaking.js)注入,對戰結束時通知移除房間
 
-    this.spawnInitialObstacles(); // 須在食物生成之前,讓食物避開障礙物座標
+    this.sendMapToPlayer(playerA.id);
+    this.sendMapToPlayer(playerB.id);
     this.spawnInitialFoods();
     this.startMinimapBroadcast();
   }
@@ -36,42 +61,12 @@ export class Room {
     }
   }
 
-  // ---------- 障礙物(靜態,整局不變動,見規格2.3節) ----------
+  // ---------- 地圖(固定地圖池,雙方各自獨立隨機抽取,見規格2.3節) ----------
 
-  // 稀疏地標式障礙物:數量少、彼此有最小距離、只靠邊緣生成、避開中央活動空間與重生安全區。
-  // 用嘗試生成法湊到目標數量,總嘗試次數封頂,湊不滿就用實際生成到的數量(不無限重試卡死)。
-  spawnInitialObstacles() {
-    // 蛇初始重生座標(對應client端 GameController._startMatch 的起始位置),障礙物需避開
-    const startX = Math.floor(CONFIG.MAP_WIDTH / 2);
-    const startY = Math.floor(CONFIG.MAP_HEIGHT / 2);
-    const spawnCells = [];
-    for (let i = 0; i < CONFIG.INITIAL_SNAKE_LENGTH; i++) spawnCells.push({ x: startX - i, y: startY });
-
-    // 中央排除地帶:以地圖中心為準內縮 OBSTACLE_CENTER_INSET_RATIO,範圍內禁止放障礙物
-    const insetX = CONFIG.MAP_WIDTH * CONFIG.OBSTACLE_CENTER_INSET_RATIO;
-    const insetY = CONFIG.MAP_HEIGHT * CONFIG.OBSTACLE_CENTER_INSET_RATIO;
-    const centralXMin = insetX;
-    const centralXMax = CONFIG.MAP_WIDTH - insetX;
-    const centralYMin = insetY;
-    const centralYMax = CONFIG.MAP_HEIGHT - insetY;
-
-    for (const playerId of this.playerIds) {
-      const list = this.obstacles[playerId];
-      let attempts = 0;
-      while (list.length < CONFIG.OBSTACLE_COUNT && attempts < CONFIG.OBSTACLE_MAX_ATTEMPTS) {
-        attempts++;
-        const pos = {
-          x: Math.floor(Math.random() * CONFIG.MAP_WIDTH),
-          y: Math.floor(Math.random() * CONFIG.MAP_HEIGHT),
-        };
-        if (pos.x >= centralXMin && pos.x < centralXMax && pos.y >= centralYMin && pos.y < centralYMax) continue;
-        if (Math.hypot(pos.x - startX, pos.y - startY) <= CONFIG.OBSTACLE_SAFE_RADIUS) continue;
-        if (spawnCells.some((c) => c.x === pos.x && c.y === pos.y)) continue;
-        if (list.some((o) => Math.abs(o.x - pos.x) + Math.abs(o.y - pos.y) < CONFIG.OBSTACLE_MIN_DIST)) continue;
-        list.push(pos);
-      }
-      this.players[playerId].send(S2C.OBSTACLE_LAYOUT, { obstacles: list });
-    }
+  sendMapToPlayer(playerId) {
+    const player = this.players[playerId];
+    const map = this.maps[playerId];
+    if (player) player.send(S2C.OBSTACLE_LAYOUT, { map });
   }
 
   // ---------- 食物 ----------
@@ -85,25 +80,23 @@ export class Room {
   spawnFood(playerId) {
     const player = this.players[playerId];
     const myFoods = this.foods[playerId];
+    const map = this.maps[playerId];
     const foodId = `f_${nanoid(8)}`;
 
-    const myObstacles = this.obstacles[playerId] || [];
+    const mapObstacles = map?.obstacles || [];
     const occupied = (pos) => {
       if ([...myFoods.values()].some((f) => f.x === pos.x && f.y === pos.y)) return true;
       if (player.snakeBody && player.snakeBody.some((c) => c.x === pos.x && c.y === pos.y)) return true;
-      if (myObstacles.some((o) => o.x === pos.x && o.y === pos.y)) return true;
+      if (mapObstacles.some((o) => o.x === pos.x && o.y === pos.y)) return true;
       return false;
     };
 
     let pos;
     let attempts = 0;
     do {
-      pos = {
-        x: Math.floor(Math.random() * CONFIG.MAP_WIDTH),
-        y: Math.floor(Math.random() * CONFIG.MAP_HEIGHT),
-      };
+      pos = randomWalkableCell(map);
       attempts++;
-    } while (occupied(pos) && attempts < 50); // 避免蛇身佔滿地圖時無窮迴圈
+    } while (pos && occupied(pos) && attempts < 50); // 避免蛇身佔滿地圖時無窮迴圈
 
     myFoods.set(foodId, pos);
     player.send(S2C.FOOD_SPAWNED, { foodId, position: pos });
@@ -311,19 +304,21 @@ export class Room {
   // ---------- 死亡判定(客戶端回報座標、伺服器驗證碰撞是否成立) ----------
 
   // 用死亡當下回報的座標做邏輯自洽驗證,不是重新模擬整場移動:
-  // 撞牆用地圖邊界判斷(不受延遲影響,100%準確);撞自己則檢查蛇頭是否真的落在回報的蛇身格上;
-  // 撞障礙物則比對該玩家自己的障礙物座標清單(room建立時生成,見 spawnInitialObstacles)。
+  // 撞牆/牆體用該玩家抽到的地圖判斷(超出地圖邊界,或落在所有房間/走廊範圍之外的黑色虛空/牆體皆算,
+  // 見規格文件2.3節);撞自己則檢查蛇頭是否真的落在回報的蛇身格上;撞障礙物則比對該玩家地圖的障礙物清單。
   // 擋掉「完全沒碰撞卻回報死亡」的假造事件,細節見規格文件6.1節的取捨說明。
   validateDeathReport(playerId, cause, headPos, bodyCells) {
     if (!headPos || typeof headPos.x !== "number" || typeof headPos.y !== "number") return false;
+    const map = this.maps[playerId];
     if (cause === "wall") {
-      return headPos.x < 0 || headPos.x >= CONFIG.MAP_WIDTH || headPos.y < 0 || headPos.y >= CONFIG.MAP_HEIGHT;
+      const outOfBounds = headPos.x < 0 || headPos.x >= CONFIG.MAP_WIDTH || headPos.y < 0 || headPos.y >= CONFIG.MAP_HEIGHT;
+      return outOfBounds || !isWalkable(map, headPos);
     }
     if (cause === "self") {
       return Array.isArray(bodyCells) && bodyCells.some((c) => c && c.x === headPos.x && c.y === headPos.y);
     }
     if (cause === "obstacle") {
-      const list = this.obstacles[playerId] || [];
+      const list = map?.obstacles || [];
       return list.some((o) => o.x === headPos.x && o.y === headPos.y);
     }
     return false; // 未知死因,直接視為不合法

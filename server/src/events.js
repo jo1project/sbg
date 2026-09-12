@@ -35,7 +35,7 @@ export const S2C = {
   INVITE_CANCELLED: "invite_cancelled",   // 發起方自己取消(通知對方邀請已撤回)
   PONG: "pong",
   FOOD_SPAWNED: "food_spawned",
-  OBSTACLE_LAYOUT: "obstacle_layout", // 房間建立時一次性推送,只給該玩家自己,雙方各自獨立不同步
+  OBSTACLE_LAYOUT: "obstacle_layout", // 房間建立時一次性推送該玩家從固定地圖池抽到的整包地圖資料({ map }),只給該玩家自己,雙方各自獨立不同步
   ENERGY_UPDATE: "energy_update",
   ATTACK_INCOMING: "attack_incoming",
   ATTACK_REJECTED: "attack_rejected",
@@ -66,14 +66,8 @@ export const CONFIG = {
   MATCH_WAIT_BEFORE_NPC_MS: 8000, // 隨機配對等待真人的時間
   INVITE_TIMEOUT_MS: 30000,       // 好友邀請有效期限
   RECONNECT_GRACE_MS: 10000,
-  MAP_WIDTH: 12,  // 直向手機比例地圖,12欄(x軸)
-  MAP_HEIGHT: 24, // 24列(y軸),需與client端 GameConfig.mapWidth/mapHeight 一致
-  INITIAL_SNAKE_LENGTH: 4, // 需與client端 GameConfig.initialSnakeLength 一致,算重生格排除用
-  OBSTACLE_COUNT: 7,       // 稀疏地標式障礙物目標數量(各自獨立隨機,見規格2.3節)
-  OBSTACLE_MIN_DIST: 6,    // 任兩障礙物曼哈頓距離下限,避免擠在一起
-  OBSTACLE_CENTER_INSET_RATIO: 0.28, // 以地圖中心為準內縮此比例,內縮範圍禁止放障礙物,留給蛇的主要活動空間
-  OBSTACLE_SAFE_RADIUS: 3, // 蛇重生點(地圖正中央)周圍安全區半徑(格),不放置障礙物
-  OBSTACLE_MAX_ATTEMPTS: 800, // 嘗試生成法的總嘗試次數上限,湊不滿目標數量就用實際生成到的數量,不無限重試
+  MAP_WIDTH: 12,  // 直向手機比例地圖,12欄(x軸),需與地圖池每張地圖的 gridCols 一致
+  MAP_HEIGHT: 24, // 24列(y軸),需與地圖池每張地圖的 gridRows 一致
   SNAKE_POSITION_SYNC_MS: 1000, // 玩家回報蛇身座標的頻率(伺服器內部使用,不轉發完整座標給對手)
   MINIMAP_BROADCAST_MS: 2000,   // 模糊小地圖推播頻率
   MINIMAP_NOISE_RANGE: 2,       // 小地圖座標誤差範圍(±N格的隨機雜訊)
