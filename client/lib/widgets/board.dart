@@ -64,12 +64,14 @@ class _BoardPainter extends CustomPainter {
     required this.moveTick,
   });
 
-  // 格子中心不變,畫出來的圖案邊長是格子的 _spriteScale 倍,蓋過鄰近格子做放大效果。
-  // 滿版地圖下 cellW/cellH 不一定相等(棋盤不是正方形),所以寬高分開算。
+  // 格子中心點用cellW/cellH各自算(滿版地圖下棋盤不一定是正方形),但畫出來的圖案
+  // 邊長用min(cellW,cellH)乘上倍率、寬高相同,維持素材原本比例(正方形),不會因為
+  // 棋盤不是正方形就被拉伸變形。
   Rect _enlargedCell(Point p, double cellW, double cellH) {
-    final w = cellW * _spriteScale;
-    final h = cellH * _spriteScale;
-    return Rect.fromLTWH(p.x * cellW + cellW / 2 - w / 2, p.y * cellH + cellH / 2 - h / 2, w, h);
+    final s = math.min(cellW, cellH) * _spriteScale;
+    final cx = p.x * cellW + cellW / 2;
+    final cy = p.y * cellH + cellH / 2;
+    return Rect.fromLTWH(cx - s / 2, cy - s / 2, s, s);
   }
 
   // 白色外框沿著圖案本身的輪廓(不透明像素)畫,不是格子的矩形框:
