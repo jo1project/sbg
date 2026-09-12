@@ -96,7 +96,7 @@ class GameController extends ChangeNotifier {
       await _socket.connect(serverUrl);
     } catch (_) {
       connStatus = ConnStatus.disconnected;
-      banner = "連線失敗,請檢查伺服器位址";
+      _setBanner("連線失敗,請檢查伺服器位址");
       notifyListeners();
       return;
     }
@@ -123,8 +123,20 @@ class GameController extends ChangeNotifier {
   }
 
   void clearBanner() {
+    _bannerClearTimer?.cancel();
     banner = null;
     notifyListeners();
+  }
+
+  // 所有一次性訊息都走這裡設定,自動幾秒後清除,避免卡在畫面上蓋到下一個狀態
+  // (例如回大廳後還顯示上一場的攻擊結果)。
+  void _setBanner(String text, {Duration duration = const Duration(seconds: 3)}) {
+    banner = text;
+    _bannerClearTimer?.cancel();
+    _bannerClearTimer = Timer(duration, () {
+      banner = null;
+      notifyListeners();
+    });
   }
 
   // ---------- 配對 ----------
@@ -212,7 +224,7 @@ class GameController extends ChangeNotifier {
         break;
 
       case Ev.restoreFailed:
-        banner = "還原碼查無資料";
+        _setBanner("還原碼查無資料");
         break;
 
       case Ev.matchWaiting:
@@ -228,23 +240,23 @@ class GameController extends ChangeNotifier {
         break;
 
       case Ev.inviteFailed:
-        banner = "邀請失敗:${msg["reason"]}";
+        _setBanner("邀請失敗:${msg["reason"]}");
         matchStatus = MatchStatus.idle;
         break;
 
       case Ev.inviteRejected:
-        banner = "對方拒絕了邀請";
+        _setBanner("對方拒絕了邀請");
         matchStatus = MatchStatus.idle;
         break;
 
       case Ev.inviteTimeout:
-        banner = "邀請逾時未回應";
+        _setBanner("邀請逾時未回應");
         matchStatus = MatchStatus.idle;
         incomingInviteFromId = null;
         break;
 
       case Ev.inviteCancelled:
-        banner = "對方已撤回邀請";
+        _setBanner("對方已撤回邀請");
         incomingInviteFromId = null;
         break;
 
@@ -295,17 +307,17 @@ class GameController extends ChangeNotifier {
 
       case Ev.attackRejected:
         pendingOutgoingAttack = false;
-        banner = "攻擊未成立:${msg["reason"]}";
+        _setBanner("攻擊未成立:${msg["reason"]}");
         break;
 
       case Ev.selfPausedBySpam:
         final durationMs = (msg["durationMs"] as num).toInt();
         myEffect = ActiveEffect("pause", DateTime.now().add(Duration(milliseconds: durationMs)));
-        banner = "連續被閃躲,自己暫停${durationMs ~/ 1000}秒";
+        _setBanner("連續被閃躲,自己暫停${durationMs ~/ 1000}秒");
         break;
 
       case Ev.deathReportRejected:
-        banner = "死亡回報未通過伺服器驗證";
+        _setBanner("死亡回報未通過伺服器驗證");
         break;
 
       case Ev.opponentDisconnected:
@@ -329,7 +341,7 @@ class GameController extends ChangeNotifier {
         break;
 
       case Ev.error:
-        banner = msg["message"]?.toString() ?? "發生未知錯誤";
+        _setBanner(msg["message"]?.toString() ?? "發生未知錯誤");
         break;
     }
     notifyListeners();
@@ -346,7 +358,7 @@ class GameController extends ChangeNotifier {
     incomingAttack = null;
 
     if (dodged) {
-      banner = iAmAttacker ? "對方閃躲成功" : "閃躲成功!";
+      _setBanner(iAmAttacker ? "對方閃躲成功" : "閃躲成功!");
       return;
     }
 
@@ -355,14 +367,14 @@ class GameController extends ChangeNotifier {
       if (iAmDefender) {
         _growthPending += (msg["lengthenBy"] as num).toInt();
       }
-      banner = iAmAttacker ? "命中!對手變長了" : "被直接攻擊命中,身體變長了";
+      _setBanner(iAmAttacker ? "命中!對手變長了" : "被直接攻擊命中,身體變長了");
       return;
     }
 
     // random 效果類:speedup / pause / blind,預告 previewDelayMs 後才生效,只套用在防守方
     final durationMs = (msg["effectDuration"] as num?)?.toInt() ?? 0;
     final previewDelayMs = (msg["previewDelayMs"] as num?)?.toInt() ?? 0;
-    banner = iAmAttacker ? "命中!對手即將受到 $effectType 效果" : "即將發動:$effectType 效果";
+    _setBanner(iAmAttacker ? "命中!對手即將受到 $effectType 效果" : "即將發動:$effectType 效果");
     if (iAmDefender && effectType != null) {
       Timer(Duration(milliseconds: previewDelayMs), () {
         myEffect = ActiveEffect(effectType, DateTime.now().add(Duration(milliseconds: durationMs)));
@@ -408,6 +420,8 @@ class GameController extends ChangeNotifier {
     opponentId = null;
     gameOver = null;
     myFoods.clear();
+    _bannerClearTimer?.cancel();
+    banner = null;
     _stopMatchTimers();
     notifyListeners();
   }
