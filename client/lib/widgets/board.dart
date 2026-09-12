@@ -133,7 +133,6 @@ class _BoardPainter extends CustomPainter {
       canvas.drawCircle(Offset((f.x + 0.5) * cell, (f.y + 0.5) * cell), cell * 0.3, foodPaint);
     }
 
-    final frameCol = CharacterSprites.walkFrameCols[moveTick % CharacterSprites.walkFrameCols.length];
     // 從蛇尾畫到蛇頭,確保蛇頭(放大後)蓋在身體上面而不是被身體蓋住
     for (var i = snake.length - 1; i >= 0; i--) {
       final p = snake[i];
@@ -148,6 +147,11 @@ class _BoardPainter extends CustomPainter {
         canvas.drawRRect(RRect.fromRectAndRadius(dest.deflate(cell * 0.5), const Radius.circular(3)), paint);
         continue;
       }
+      // 左右移動時改用攻擊動畫循環,上下移動維持走路動畫
+      final frameCols = (segDir == Direction.left || segDir == Direction.right)
+          ? CharacterSprites.attackFrameCols
+          : CharacterSprites.walkFrameCols;
+      final frameCol = frameCols[moveTick % frameCols.length];
       final src = Rect.fromLTWH(
         frameCol * CharacterSprites.frameSize,
         segDir.spriteRow * CharacterSprites.frameSize,

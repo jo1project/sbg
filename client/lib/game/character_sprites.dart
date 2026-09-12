@@ -8,6 +8,7 @@ import 'sprite_loader.dart';
 class CharacterSprites {
   static const frameSize = 32.0;
   static const walkFrameCols = [1, 2, 3, 4];
+  static const attackFrameCols = [5, 6, 7, 8]; // 左右移動時改用這組(素材裡的攻擊動畫)
 
   static ui.Image? hero;
   static ui.Image? goblin;

@@ -49,8 +49,8 @@ extension DirectionDelta on Direction {
   // Puny Characters 精靈表(29欄x8列)裡對應此方向的列索引,其餘列是對角朝向,本遊戲用不到
   int get spriteRow => switch (this) {
         Direction.down => 0,
-        Direction.left => 2,
+        Direction.left => 6,
         Direction.up => 4,
-        Direction.right => 6,
+        Direction.right => 2,
       };
 }

@@ -30,7 +30,8 @@
 `Goblin-Warrior` 精靈表,先當預設/佔位選擇,還沒套用規格2.4/2.5節討論的頭部客製化疊圖。已確認為
 付費購買、可商用的授權,可以正式使用。渲染邏輯在 `lib/widgets/board.dart`:
 - 列(row)= 方向,只用上下左右四個主列(`Direction.spriteRow`,見 `lib/models/point.dart`),對角列用不到
-- 欄(col)= 走路動畫,1~4 四格循環,由 `GameController.moveTick`(每次實際移動+1)驅動,跟移動節奏天然同步
+- 欄(col)= 動畫,由 `GameController.moveTick`(每次實際移動+1)驅動,跟移動節奏天然同步:上下移動用
+  走路循環(1~4格),左右移動改用素材裡的攻擊動畫循環(5~8格,`CharacterSprites.attackFrameCols`)
 - 蛇頭用實際移動方向;蛇身每一節用「朝向前一節」的方向(`Direction.fromDelta`),做出跟隨感
 - 素材圖片異步載入(`CharacterSprites.load()`,在 `main.dart` 啟動時觸發),載入完成前用原本的色塊當備援畫法
 
