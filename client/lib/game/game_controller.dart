@@ -401,7 +401,7 @@ class GameController extends ChangeNotifier {
     _attackHitToken++;
     final token = _attackHitToken;
     showAttackHitBanner = true;
-    Timer(const Duration(milliseconds: 1000), () {
+    Timer(const Duration(milliseconds: 2000), () {
       if (_attackHitToken == token) {
         showAttackHitBanner = false;
         notifyListeners();

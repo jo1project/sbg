@@ -99,6 +99,8 @@ class _BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cell = size.width / GameConfig.mapSize;
     final boardRect = Rect.fromLTWH(0, 0, size.width, size.height);
+    // 放大後的障礙物/人物圖案可能蓋過地圖邊界外,裁切掉超出棋盤範圍的部分
+    canvas.clipRect(boardRect);
 
     final bg = MapSprites.background;
     if (bg != null) {
@@ -140,7 +142,8 @@ class _BoardPainter extends CustomPainter {
       // 蛇頭永遠面向實際移動方向;蛇身每一節面向「朝前一節」的方向,做出跟隨感
       final segDir = i == 0 ? dir : DirectionDelta.fromDelta(snake[i - 1] - p);
       final sprite = i == 0 ? CharacterSprites.hero : CharacterSprites.goblin;
-      final dest = _enlargedCell(p, cell);
+      // 每節都往內縮2.5px,讓相鄰兩節之間多留5px距離,不要貼那麼近
+      final dest = _enlargedCell(p, cell).deflate(2.5);
       if (sprite == null) {
         // 素材尚未載入完成時的備援畫法
         final paint = Paint()..color = i == 0 ? Colors.lightGreenAccent : Colors.green;

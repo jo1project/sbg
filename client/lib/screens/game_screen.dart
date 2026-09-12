@@ -22,26 +22,34 @@ class GameScreen extends StatelessWidget {
               children: [
                 _TopBar(c: c),
                 Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: c.incomingAttack != null ? Colors.redAccent : Colors.transparent,
-                            width: 4,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: c.incomingAttack != null ? Colors.redAccent : Colors.transparent,
+                                width: 4,
+                              ),
+                            ),
+                            child: Board(
+                              snake: c.mySnake,
+                              foods: c.myFoods.values.toList(),
+                              obstacles: c.obstacles,
+                              dir: c.dir,
+                              blind: c.isBlind,
+                              moveTick: c.moveTick,
+                            ),
                           ),
                         ),
-                        child: Board(
-                          snake: c.mySnake,
-                          foods: c.myFoods.values.toList(),
-                          obstacles: c.obstacles,
-                          dir: c.dir,
-                          blind: c.isBlind,
-                          moveTick: c.moveTick,
-                        ),
                       ),
-                    ),
+                      // 定位在這一層(地圖正上方),不是整個畫面最上方,避免蓋到能量條或被裁切
+                      _AttackHitBanner(show: c.showAttackHitBanner),
+                    ],
                   ),
                 ),
                 _BottomBelt(c: c),
@@ -49,7 +57,6 @@ class GameScreen extends StatelessWidget {
             ),
             if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
             if (c.incomingAttack != null) const _DodgeAlert(),
-            _AttackHitBanner(show: c.showAttackHitBanner),
             if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
             if (c.gameOver != null) _GameOverOverlay(c: c),
           ],
@@ -191,7 +198,8 @@ class _DodgeAlert extends StatelessWidget {
   }
 }
 
-// 攻擊命中時從畫面上方滑入橫幅圖片,停留後滑出(見GameController.showAttackHitBanner)
+// 攻擊命中時從地圖正上方滑入橫幅圖片,停留後滑出(見GameController.showAttackHitBanner)。
+// 定位在包住Board的那個Stack裡(不是整個畫面的Stack),所以不會蓋到上面的能量條/小地圖。
 class _AttackHitBanner extends StatelessWidget {
   final bool show;
   const _AttackHitBanner({required this.show});

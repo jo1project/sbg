@@ -55,7 +55,7 @@ export const EFFECTS = ["speedup", "pause", "blind"];
 // 數值常數(對應規格文件)
 export const CONFIG = {
   ENERGY_CAP: 10,              // 效果計算封頂值
-  DODGE_WINDOW_MS: 300,        // 閃躲視窗
+  DODGE_WINDOW_MS: 1000,       // 閃躲視窗
   PREVIEW_DELAY_MS: 1000,      // 閃躲失敗後的預告/攻擊動畫時間
   SPAM_PAUSE_THRESHOLD: 3,     // 連續被閃躲N次後反噬
   SPAM_PAUSE_DURATION_MS: 3000,

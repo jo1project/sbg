@@ -155,7 +155,7 @@
 - 因模式B雙方地圖獨立,不需高頻同步完整座標,伺服器負擔低
 
 ### 7.2 通訊協定
-- WebSocket(如 Node.js 的 `ws` 套件),不需 UDP 等級的即時性(0.3秒判定精度已足夠)
+- WebSocket(如 Node.js 的 `ws` 套件),不需 UDP 等級的即時性(1秒判定精度已足夠)
 
 ### 7.3 蛇身座標同步(伺服器內部用)
 
@@ -173,7 +173,7 @@
 | `restore_account` / `account_restored` | Client → Server / Server → Client | 換裝置或重灌後 | 用還原碼找回原本的 playerId |
 | `energy_update` | Server → Both | 吃到食物時 | 更新雙方畫面的能量條顯示 |
 | `attack_request` | Client → Server | 玩家操作時 | 攻擊方請求發動攻擊 |
-| `attack_incoming` | Server → Both | 攻擊通過檢查後 | 廣播攻擊已觸發,開始0.3秒閃躲倒數 |
+| `attack_incoming` | Server → Both | 攻擊通過檢查後 | 廣播攻擊已觸發,開始1秒閃躲倒數 |
 | `dodge_attempt` | Client → Server | 玩家嘗試閃躲時 | 被攻擊方回報閃躲操作時間 |
 | `attack_result` | Server → Both | 閃躲判定完成後 | 廣播閃躲成功/失敗與效果內容 |
 | `attack_rejected` | Server → Attacker | 攻擊被狀態鎖擋下時 | 告知攻擊方攻擊未成立及原因 |
@@ -197,7 +197,7 @@
 3. 伺服器完成狀態檢查與擲骰(random類型),廣播 `attack_incoming` 給雙方
 4. 被攻擊方的閃躲視窗起點校正為 `T_attack + RTT/2`,而非收到封包當下,避免高延遲玩家被懲罰
 5. 被攻擊方送出 `dodge_attempt`(含本地操作時間)
-6. 伺服器用 RTT 校正操作實際發生時間,判定是否落在 `[T_attack, T_attack+300ms]` 視窗內
+6. 伺服器用 RTT 校正操作實際發生時間,判定是否落在 `[T_attack, T_attack+1000ms]` 視窗內
 7. 伺服器廣播 `attack_result`,雙方依結果播放對應動畫/套用效果
 
 ### 7.6 資料格式範例
@@ -217,7 +217,7 @@
   "attackType": "random",
   "attackerEnergyUsed": 8,
   "serverAttackTime": 1699999999200,
-  "dodgeWindowMs": 300
+  "dodgeWindowMs": 1000
 }
 
 // 閃躲結果
@@ -329,7 +329,7 @@ players (SQLite資料表)
 
 - 攻擊來襲警示:遊戲區邊緣閃爍外框,**單一顏色**,不依攻擊類型(a/b)區分,避免提前洩漏攻擊種類
 - **不使用震動**,搭配**音效**提示(具體音效內容待後續設計)
-- 閃躲失敗後的 1 秒預告期(b2 規則):**預留播放攻擊動畫**的時機點,動畫具體內容之後再設計(先建立流程卡位,不影響現有時序:警示0.3秒→閃躲失敗→攻擊動畫/預告1秒→效果正式生效)
+- 閃躲失敗後的 1 秒預告期(b2 規則):**預留播放攻擊動畫**的時機點,動畫具體內容之後再設計(先建立流程卡位,不影響現有時序:警示1秒→閃躲失敗→攻擊動畫/預告1秒→效果正式生效)
 
 ### 9.4 待確認/待測試項目
 
