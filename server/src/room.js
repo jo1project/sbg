@@ -10,6 +10,8 @@ export class Room {
     this.id = id;
     this.players = { [playerA.id]: playerA, [playerB.id]: playerB };
     this.playerIds = [playerA.id, playerB.id];
+    playerA.resetForMatch();
+    playerB.resetForMatch();
 
     // 模式B:雙方地圖各自獨立,食物也各玩各的,不共用同一份清單
     this.foods = { [playerA.id]: new Map(), [playerB.id]: new Map() };

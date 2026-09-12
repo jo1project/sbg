@@ -38,8 +38,13 @@
 紋理,固定鋪滿整個棋盤(對應規格2.4節)。`assets/map/obstacle_*.png` 是同包裡的素描風山/樹/灌木小圖示,
 座標由伺服器 `room.js` 的 `spawnInitialObstacles()` 在房間建立時各自獨立隨機生成(見規格2.3節,已實作
 `obstacle_layout` 事件+撞到判死亡+伺服器端碰撞驗證),整局不變動,一格一個固定圖示(依座標決定,不是
-每次重繪隨機換)。障礙物格加了白色外框(`lib/widgets/board.dart` 的 `obstacleBorder`)方便在地圖上辨識。
-載入邏輯在 `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用 `lib/game/sprite_loader.dart` 的圖片載入函式。
+每次重繪隨機換)。載入邏輯在 `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用
+`lib/game/sprite_loader.dart` 的圖片載入函式。
+
+**放大與外框**(`lib/widgets/board.dart`):人物每一節、障礙物圖示都用 `_spriteScale`(3倍)放大畫,
+中心點對齊原本的格子中心,蓋過鄰近格子,格線也拿掉了。障礙物的白色外框是沿著圖示本身不透明像素的
+輪廓畫(`_drawOutlinedIcon`:先用白色疊畫幾份位移過的圖只留下輪廓,再蓋上原圖),不是格子的矩形框。
+蛇身改成從尾畫到頭,確保放大後蛇頭蓋在身體上面。
 
 ## 開發
 

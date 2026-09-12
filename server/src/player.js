@@ -11,13 +11,6 @@ export class Player {
     this.ws = ws;
     this.isNpc = isNpc;
 
-    this.energy = 0;
-    this.activeEffect = null; // { type: 'pause'|'blind'|'speedup', endsAt: number }
-    this.pendingAttack = null; // attackId 目前尚未結算的攻擊
-    this.dodgedAgainstMeCount = 0; // 對手閃躲我方攻擊的累計次數
-
-    this.lastHeadPos = null; // 最近一次客戶端回報的蛇頭位置(用於吃食物驗證)
-    this.snakeBody = []; // 最近一次回報的完整蛇身佔用座標(伺服器內部用,不轉發給對手)
     this.rttMs = 60; // 初始假設值,ping/pong後持續更新(滑動平均)
     this.connected = true;
     this.disconnectTimer = null;
@@ -25,6 +18,24 @@ export class Player {
     this.inQueue = false;               // 是否在隨機配對佇列中
     this.outgoingInvite = null;         // { targetId, timeoutTimer } 我方發出、尚未有結果的邀請
     this.incomingInvite = null;         // { fromId } 別人發給我、尚未回應的邀請
+
+    this.resetForMatch();
+  }
+
+  // 同一個 WebSocket 連線(同一個 Player 物件)會被重複用在好幾場對戰,
+  // 每次配對成功、Room建立時都要呼叫,否則上一場的死亡回報記錄/能量/效果會殘留,
+  // 導致下一場真的死亡時 handleDeathReport 因 deathReportedAt 已經有值而被靜默忽略、
+  // 玩家卡死在畫面上完全沒有 game_over(這是本次要修的bug)。
+  resetForMatch() {
+    this.energy = 0;
+    this.activeEffect = null; // { type: 'pause'|'blind'|'speedup', endsAt: number }
+    this.pendingAttack = null; // attackId 目前尚未結算的攻擊
+    this.pendingIncomingAttack = null;
+    this.dodgedAgainstMeCount = 0; // 對手閃躲我方攻擊的累計次數
+
+    this.lastHeadPos = null; // 最近一次客戶端回報的蛇頭位置(用於吃食物驗證)
+    this.snakeBody = []; // 最近一次回報的完整蛇身佔用座標(伺服器內部用,不轉發給對手)
+    this.deathReportedAt = null;
   }
 
   isBusy() {

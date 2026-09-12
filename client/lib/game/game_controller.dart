@@ -323,7 +323,8 @@ class GameController extends ChangeNotifier {
         break;
 
       case Ev.deathReportRejected:
-        _setBanner("死亡回報未通過伺服器驗證");
+        _setBanner("死亡回報未通過伺服器驗證,已返回大廳");
+        _resetMatchState();
         break;
 
       case Ev.opponentDisconnected:
@@ -468,6 +469,14 @@ class GameController extends ChangeNotifier {
         "cause": death.cause,
         "headPos": newHead.toJson(),
         "bodyCells": mySnake.map((p) => p.toJson()).toList(),
+      });
+      // 保險:萬一 death_report 的回應(game_over / death_report_rejected)因網路問題
+      // 沒送達,不能讓玩家永遠卡死在畫面上動不了,逾時就強制回大廳
+      Timer(const Duration(seconds: 5), () {
+        if (matchStatus == MatchStatus.inRoom && gameOver == null) {
+          _setBanner("連線異常,已返回大廳");
+          _resetMatchState();
+        }
       });
       notifyListeners();
       return;

@@ -1,10 +1,15 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../game/character_sprites.dart';
 import '../game/map_sprites.dart';
 import '../models/point.dart';
 
-// 棋盤繪製:背景 + 格線 + 障礙物 + 蛇身 + 食物。blind 效果時只露出蛇頭前方兩格,其餘蓋黑。
+// 人物/障礙物視覺上放大成幾格大小(格子仍是原本的碰撞格,只是圖案畫得比格子大、
+// 蓋過鄰近格子,做出Q版放大的效果)
+const double _spriteScale = 3.0;
+
+// 棋盤繪製:背景 + 障礙物 + 蛇身 + 食物(無格線)。blind 效果時只露出蛇頭前方兩格,其餘蓋黑。
 class Board extends StatelessWidget {
   final List<Point> snake;
   final List<Point> foods;
@@ -59,6 +64,29 @@ class _BoardPainter extends CustomPainter {
     required this.moveTick,
   });
 
+  // 格子中心不變,畫出來的圖案邊長是格子的 _spriteScale 倍,蓋過鄰近格子做放大效果
+  Rect _enlargedCell(Point p, double cell) {
+    final w = cell * _spriteScale;
+    return Rect.fromLTWH(p.x * cell + cell / 2 - w / 2, p.y * cell + cell / 2 - w / 2, w, w);
+  }
+
+  // 白色外框沿著圖案本身的輪廓(不透明像素)畫,不是格子的矩形框:
+  // 做法是先用白色貼幾份位移過的圖(只保留alpha輪廓),再疊上原圖蓋住中間
+  void _drawOutlinedIcon(Canvas canvas, ui.Image icon, Rect dest) {
+    final src = Rect.fromLTWH(0, 0, icon.width.toDouble(), icon.height.toDouble());
+    final outlinePaint = Paint()
+      ..filterQuality = FilterQuality.none
+      ..colorFilter = const ColorFilter.mode(Colors.white, BlendMode.srcIn);
+    const o = 2.5;
+    for (final d in const [
+      Offset(-o, 0), Offset(o, 0), Offset(0, -o), Offset(0, o),
+      Offset(-o, -o), Offset(o, -o), Offset(-o, o), Offset(o, o),
+    ]) {
+      canvas.drawImageRect(icon, src, dest.shift(d), outlinePaint);
+    }
+    canvas.drawImageRect(icon, src, dest, Paint()..filterQuality = FilterQuality.none);
+  }
+
   bool _visible(Point p) {
     if (!blind || snake.isEmpty) return true;
     final head = snake.first;
@@ -85,33 +113,17 @@ class _BoardPainter extends CustomPainter {
       canvas.drawRect(boardRect, Paint()..color = const Color(0xFF10231A));
     }
 
-    // 素描風古地圖背景較淺,格線改用半透明深色,淺色備援底則沿用原本的淺格線
-    final gridPaint = Paint()
-      ..color = bg != null ? Colors.black26 : Colors.white12
-      ..strokeWidth = 1;
-    for (var i = 0; i <= GameConfig.mapSize; i++) {
-      canvas.drawLine(Offset(i * cell, 0), Offset(i * cell, size.height), gridPaint);
-      canvas.drawLine(Offset(0, i * cell), Offset(size.width, i * cell), gridPaint);
-    }
-
     final obstacleIcons = MapSprites.obstacleIcons;
-    final obstacleBorder = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
     for (final o in obstacles) {
       if (!_visible(o)) continue;
-      final dest = Rect.fromLTWH(o.x * cell, o.y * cell, cell, cell);
-      canvas.drawRect(dest.deflate(1), obstacleBorder);
+      final dest = _enlargedCell(o, cell);
       if (obstacleIcons.isNotEmpty) {
         // 座標決定固定圖示,同一格每次重繪都一樣、整局不變動
         final icon = obstacleIcons[(o.x * 31 + o.y * 17).abs() % obstacleIcons.length];
-        canvas.drawImageRect(
-          icon,
-          Rect.fromLTWH(0, 0, icon.width.toDouble(), icon.height.toDouble()),
-          dest.deflate(cell * 0.1),
-          Paint()..filterQuality = FilterQuality.none,
-        );
+        _drawOutlinedIcon(canvas, icon, dest);
+      } else {
+        // 素材尚未載入完成時的備援畫法
+        canvas.drawRect(dest.deflate(cell * 0.3), Paint()..color = Colors.white54);
       }
     }
 
@@ -122,17 +134,18 @@ class _BoardPainter extends CustomPainter {
     }
 
     final frameCol = CharacterSprites.walkFrameCols[moveTick % CharacterSprites.walkFrameCols.length];
-    for (var i = 0; i < snake.length; i++) {
+    // 從蛇尾畫到蛇頭,確保蛇頭(放大後)蓋在身體上面而不是被身體蓋住
+    for (var i = snake.length - 1; i >= 0; i--) {
       final p = snake[i];
       if (!_visible(p)) continue;
       // 蛇頭永遠面向實際移動方向;蛇身每一節面向「朝前一節」的方向,做出跟隨感
       final segDir = i == 0 ? dir : DirectionDelta.fromDelta(snake[i - 1] - p);
       final sprite = i == 0 ? CharacterSprites.hero : CharacterSprites.goblin;
-      final dest = Rect.fromLTWH(p.x * cell, p.y * cell, cell, cell);
+      final dest = _enlargedCell(p, cell);
       if (sprite == null) {
         // 素材尚未載入完成時的備援畫法
         final paint = Paint()..color = i == 0 ? Colors.lightGreenAccent : Colors.green;
-        canvas.drawRRect(RRect.fromRectAndRadius(dest.deflate(1), const Radius.circular(3)), paint);
+        canvas.drawRRect(RRect.fromRectAndRadius(dest.deflate(cell * 0.5), const Radius.circular(3)), paint);
         continue;
       }
       final src = Rect.fromLTWH(
