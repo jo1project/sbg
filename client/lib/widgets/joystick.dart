@@ -5,7 +5,8 @@ import '../models/point.dart';
 // 拖曳搖桿:回傳離散的四方向(貪食蛇只需要上下左右),不做類比搖桿。
 class Joystick extends StatefulWidget {
   final ValueChanged<Direction> onDirection;
-  const Joystick({super.key, required this.onDirection});
+  final VoidCallback? onRelease; // 手離開搖桿時觸發(閃躲判定用,見 GameController.tryDodge)
+  const Joystick({super.key, required this.onDirection, this.onRelease});
 
   @override
   State<Joystick> createState() => _JoystickState();
@@ -41,7 +42,10 @@ class _JoystickState extends State<Joystick> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onPanUpdate: (d) => _handleDrag(d.delta),
-      onPanEnd: (_) => setState(() => _knob = Offset.zero),
+      onPanEnd: (_) {
+        setState(() => _knob = Offset.zero);
+        widget.onRelease?.call();
+      },
       child: Container(
         width: 100,
         height: 100,

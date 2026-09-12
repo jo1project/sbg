@@ -31,7 +31,6 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   final controller = GameController();
-  final _urlController = TextEditingController();
   final _friendIdController = TextEditingController();
 
   @override
@@ -43,7 +42,6 @@ class _RootScreenState extends State<RootScreen> {
 
   Future<void> _init() async {
     await controller.bootstrap();
-    _urlController.text = controller.serverUrl;
     await controller.connectAndIdentify();
   }
 
@@ -53,7 +51,6 @@ class _RootScreenState extends State<RootScreen> {
   void dispose() {
     controller.removeListener(_onChange);
     controller.dispose();
-    _urlController.dispose();
     _friendIdController.dispose();
     super.dispose();
   }
@@ -78,7 +75,7 @@ class _RootScreenState extends State<RootScreen> {
 
   Widget _buildLobbyContent() {
     if (controller.connStatus != ConnStatus.connected) {
-      return _ConnectGate(controller: controller, urlController: _urlController);
+      return _ConnectGate(controller: controller);
     }
     switch (controller.matchStatus) {
       case MatchStatus.waitingQueue:
@@ -93,8 +90,7 @@ class _RootScreenState extends State<RootScreen> {
 
 class _ConnectGate extends StatelessWidget {
   final GameController controller;
-  final TextEditingController urlController;
-  const _ConnectGate({required this.controller, required this.urlController});
+  const _ConnectGate({required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -106,21 +102,15 @@ class _ConnectGate extends StatelessWidget {
         children: [
           const Text("貪食蛇對戰", style: TextStyle(fontSize: 28)),
           const SizedBox(height: 24),
-          TextField(
-            controller: urlController,
-            decoration: const InputDecoration(labelText: "伺服器位址(ws:// 或 wss://)"),
-          ),
-          const SizedBox(height: 16),
-          if (controller.banner != null) Text(controller.banner!, style: const TextStyle(color: Colors.redAccent)),
-          const SizedBox(height: 8),
+          if (controller.banner != null) ...[
+            Text(controller.banner!, style: const TextStyle(color: Colors.redAccent)),
+            const SizedBox(height: 16),
+          ],
           connecting
               ? const CircularProgressIndicator()
               : ElevatedButton(
-                  onPressed: () async {
-                    await controller.setServerUrl(urlController.text.trim());
-                    await controller.connectAndIdentify();
-                  },
-                  child: const Text("連線"),
+                  onPressed: controller.connectAndIdentify,
+                  child: const Text("重新連線"),
                 ),
         ],
       ),

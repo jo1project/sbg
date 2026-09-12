@@ -1,5 +1,6 @@
 // 對應 server/src/events.js 的 CONFIG,數值必須跟伺服器一致。
 class GameConfig {
+  static const serverUrl = "wss://my1st123.pp.ua/snake";
   static const mapSize = 20;
   static const dodgeWindowMs = 300;
   static const previewDelayMs = 1000;

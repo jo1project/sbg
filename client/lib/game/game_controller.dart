@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
@@ -46,7 +47,6 @@ class GameController extends ChangeNotifier {
 
   String? playerId;
   String? recoveryCode; // 只在剛建立新帳號時有值一次,UI顯示後應呼叫 clearRecoveryCode()
-  String serverUrl = "ws://localhost:8080";
 
   String? opponentId;
   String? incomingInviteFromId; // 收到別人邀請待回應
@@ -80,23 +80,16 @@ class GameController extends ChangeNotifier {
   Future<void> bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     playerId = prefs.getString("playerId");
-    serverUrl = prefs.getString("serverUrl") ?? serverUrl;
-  }
-
-  Future<void> setServerUrl(String url) async {
-    serverUrl = url;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("serverUrl", url);
   }
 
   Future<void> connectAndIdentify() async {
     connStatus = ConnStatus.connecting;
     notifyListeners();
     try {
-      await _socket.connect(serverUrl);
+      await _socket.connect(GameConfig.serverUrl);
     } catch (_) {
       connStatus = ConnStatus.disconnected;
-      _setBanner("連線失敗,請檢查伺服器位址");
+      _setBanner("連線失敗,請檢查網路連線");
       notifyListeners();
       return;
     }
@@ -292,6 +285,7 @@ class GameController extends ChangeNotifier {
         _attackerByAttackId[attackId] = attackerId;
         if (attackerId != playerId) {
           incomingAttack = IncomingAttack(attackId, attackerId, windowMs);
+          HapticFeedback.heavyImpact();
           Timer(Duration(milliseconds: windowMs + 100), () {
             if (incomingAttack?.attackId == attackId) {
               incomingAttack = null;

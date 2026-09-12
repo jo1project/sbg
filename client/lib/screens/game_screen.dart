@@ -46,6 +46,7 @@ class GameScreen extends StatelessWidget {
               ],
             ),
             if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
+            if (c.incomingAttack != null) const _DodgeAlert(),
             if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
             if (c.gameOver != null) _GameOverOverlay(c: c),
           ],
@@ -133,11 +134,7 @@ class _BottomBelt extends StatelessWidget {
             disabled: c.pendingOutgoingAttack,
             onTap: () => c.attack("direct"),
           ),
-          GestureDetector(
-            // 閃躲判定用:對戰中若收到攻擊,點一下安全帶任意處即嘗試閃躲
-            onTap: c.incomingAttack != null ? c.tryDodge : null,
-            child: Joystick(onDirection: c.setDirection),
-          ),
+          Joystick(onDirection: c.setDirection, onRelease: c.tryDodge),
           AttackButton(
             icon: Icons.casino,
             tooltip: "隨機效果 · 加速/暫停/致盲",
@@ -164,6 +161,27 @@ class _DisconnectBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
           child: Text("對手連線中斷,等待重連... $sec", style: const TextStyle(color: Colors.white)),
+        ),
+      ),
+    );
+  }
+}
+
+class _DodgeAlert extends StatelessWidget {
+  const _DodgeAlert();
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 140,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(10)),
+        child: const Text(
+          "⚡ 被攻擊了!放開搖桿閃躲",
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
     );
