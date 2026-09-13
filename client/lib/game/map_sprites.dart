@@ -17,6 +17,7 @@ class MapSprites {
   static ui.Image? crate;
   static ui.Image? column;
   static ui.Image? chest;
+  static ui.Image? food; // 食物圖示(Kenney Simplified Platformer Pack,CC0),見client/README.md
   static final Map<String, List<ui.Image>> monsterIdle = {}; // species -> 4格待機動畫
 
   static Future<void> load() async {
@@ -29,6 +30,7 @@ class MapSprites {
     crate = await loadUiImage('assets/dungeon/crate.png');
     column = await loadUiImage('assets/dungeon/column.png');
     chest = await loadUiImage('assets/dungeon/chest_full_open_anim_f0.png');
+    food = await loadUiImage('assets/ui/food_gem.png');
     for (final species in monsterSpecies) {
       monsterIdle[species] = await Future.wait(
         [for (var f = 0; f < 4; f++) loadUiImage('assets/dungeon/${species}_idle_anim_f$f.png')],

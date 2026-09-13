@@ -83,6 +83,11 @@
 `Stack` 拿到的畫面尺寸換算 `cellW`/`cellH`(跟 `Board` 的 `CustomPaint` 算法一致),疊在自己蛇頭
 (`c.mySnake.first`)那一格的正上方。
 
+`assets/ui/food_gem.png` 是 Kenney Simplified Platformer Pack(CC0授權)裡的
+`PNG/Items/platformPack_item010.png`(橘色切割寶石),裁掉原圖(64x64)四周的透明留白後存檔。
+`board.dart` 畫食物時直接把這張圖等比縮放到約0.7倍格子大小,置中畫在食物生成的座標上,固定顯示、
+沒有動畫或方向變化(取代原本的紅色圓點)。
+
 ## 開發
 
 ```bash

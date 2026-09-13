@@ -224,11 +224,21 @@ class _BoardPainter extends CustomPainter {
       }
     }
 
-    final foodPaint = Paint()..color = Colors.redAccent;
-    final foodRadius = math.min(cellW, cellH) * 0.3;
-    for (final f in foods) {
-      if (!_visible(f)) continue;
-      canvas.drawCircle(Offset((f.x + 0.5) * cellW, (f.y + 0.5) * cellH), foodRadius, foodPaint);
+    final foodImg = MapSprites.food;
+    if (foodImg != null) {
+      // 食物圖示(橘色寶石,見client/README.md「美術素材」):固定顯示在生成的棋盤格上,
+      // 不做動畫/方向變化,依格子大小等比縮放後置中畫出。
+      final foodScale = math.min(cellW, cellH) * 0.7 / math.max(foodImg.width, foodImg.height);
+      final fw = foodImg.width * foodScale;
+      final fh = foodImg.height * foodScale;
+      final foodSrc = Rect.fromLTWH(0, 0, foodImg.width.toDouble(), foodImg.height.toDouble());
+      final foodPaint = Paint()..filterQuality = FilterQuality.none;
+      for (final f in foods) {
+        if (!_visible(f)) continue;
+        final cx = (f.x + 0.5) * cellW;
+        final cy = (f.y + 0.5) * cellH;
+        canvas.drawImageRect(foodImg, foodSrc, Rect.fromLTWH(cx - fw / 2, cy - fh / 2, fw, fh), foodPaint);
+      }
     }
 
     // 從蛇尾畫到蛇頭,確保蛇頭(放大後)蓋在身體上面而不是被身體蓋住
