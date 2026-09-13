@@ -270,6 +270,11 @@ export class Room {
       return;
     }
 
+    // TODO(debug): 查隨機死亡問題用,記錄被攻擊方最後一次被打中的效果/時間,
+    // 之後在死亡記錄裡對照時間差,查到根因後這段連同下面的死亡記錄一起移除。
+    defender.lastHitAt = Date.now();
+    defender.lastHitEffect = attack.attackType === "direct" ? "direct_lengthen" : attack.rolledEffect;
+
     if (attack.attackType === "direct") {
       this.broadcast(S2C.ATTACK_RESULT, {
         attackId,
@@ -339,7 +344,18 @@ export class Room {
     const player = this.players[playerId];
     if (!player || player.deathReportedAt) return; // 避免同一人重複回報
 
-    if (!this.validateDeathReport(playerId, cause, headPos, bodyCells)) {
+    const valid = this.validateDeathReport(playerId, cause, headPos, bodyCells);
+    // TODO(debug): 查隨機死亡問題用的臨時記錄,查到根因後移除(連同上面resolveAttack
+    // 記錄lastHitAt/lastHitEffect的部分)。記下地圖、死因座標、身體長度、離上次被攻擊
+    // 多久,方便對照是不是「被直接攻擊變長後在窄道/怪物堆裡自撞」。
+    console.log(
+      `[death] room=${this.id} player=${playerId} map=${this.maps[playerId]?.mapId} cause=${cause} ` +
+        `head=(${headPos?.x},${headPos?.y}) bodyLen=${Array.isArray(bodyCells) ? bodyCells.length : "?"} ` +
+        `valid=${valid} msSinceLastHit=${player.lastHitAt ? Date.now() - player.lastHitAt : "n/a"} ` +
+        `lastHitEffect=${player.lastHitEffect ?? "n/a"} activeEffect=${player.activeEffect?.type ?? "n/a"}`
+    );
+
+    if (!valid) {
       console.warn(`[room ${this.id}] death_report 碰撞驗證失敗,忽略 (player ${playerId}, cause=${cause})`);
       player.send(S2C.DEATH_REPORT_REJECTED, { reason: "collision_not_verified" });
       return;
