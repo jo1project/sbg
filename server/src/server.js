@@ -76,6 +76,16 @@ wss.on("connection", (ws) => {
         return;
       }
 
+      if (existingConn && existingConn.connected) {
+        // TODO(debug): 查「玩幾場後卡busy配不到對戰」問題用,查到根因後移除。
+        // 理論上舊連線的close事件應該已經觸發過,這裡卻還看到connected=true的舊entry,
+        // 代表舊ws可能還沒真的關閉就建立了新連線,新Player會蓋掉舊的,舊的可能還卡在某個房間裡。
+        console.log(
+          `[busy] identify遇到還連著的舊entry player=${playerId} oldRoomId=${existingConn.roomId} ` +
+            `oldInQueue=${existingConn.inQueue}`
+        );
+      }
+
       player = new Player(playerId, ws);
       onlinePlayers.set(playerId, player);
       wsToPlayerId.set(ws, playerId);
