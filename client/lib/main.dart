@@ -31,7 +31,7 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> {
+class _RootScreenState extends State<RootScreen> with WidgetsBindingObserver {
   final controller = GameController();
   final _friendIdController = TextEditingController();
 
@@ -39,6 +39,7 @@ class _RootScreenState extends State<RootScreen> {
   void initState() {
     super.initState();
     controller.addListener(_onChange);
+    WidgetsBinding.instance.addObserver(this);
     _init();
   }
 
@@ -49,8 +50,19 @@ class _RootScreenState extends State<RootScreen> {
 
   void _onChange() => setState(() {});
 
+  // App被切到背景/關閉時(例如Android按返回鍵離開,單一頁面架構下這會是整個app唯一的畫面,
+  // 沒有上一頁可以pop),主動通知伺服器離開對戰/佇列,不然WebSocket在背景可能長時間不會真的斷線
+  // (尤其Android不像iOS那麼快掛起背景連線),roomId永遠不會被清掉,之後配對/挑戰好友一律卡self_busy。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      if (controller.matchStatus != MatchStatus.idle) controller.leaveRoom();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     controller.removeListener(_onChange);
     controller.dispose();
     _friendIdController.dispose();

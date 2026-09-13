@@ -106,6 +106,12 @@ export class Matchmaker {
     if (!fromPlayer || !fromPlayer.connected) {
       return target.send(S2C.INVITE_FAILED, { reason: "inviter_offline" });
     }
+    // 雙方的incomingInvite/outgoingInvite都已經清掉,這裡改檢查roomId本身:
+    // 避免任一方其實還卡在舊房間裡(理論上不該發生,但challengeFriend當時isBusy()
+    // 檢查的是「送出邀請的那一刻」,接受可能是很久之後,期間任一方可能又卡進另一場)。
+    if (target.roomId || fromPlayer.roomId) {
+      return target.send(S2C.INVITE_FAILED, { reason: "already_in_room" });
+    }
     this.createRoom(fromPlayer, target);
   }
 
