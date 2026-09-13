@@ -65,10 +65,15 @@
   目前地圖池有三張(`server/maps/map_01~03.json`):地圖1/2是房間+走廊佈局、只用小型怪物;地圖3是
   單一大房間、放了三隻大型怪物。
 
-**放大與外框**(`lib/widgets/board.dart`):蛇身每一節用 `_spriteScale`(3倍)放大畫,邊長固定用
+**放大與外框**(`lib/widgets/board.dart`):蛇身每一節用 `_spriteScale`(3倍)為基準放大畫,再各自乘上
+`_heroScale`(蛇頭,0.75倍,即再縮小25%)/`_goblinScale`(蛇身,0.5倍,即再縮小50%),邊長固定用
 `min(cellW, cellH)` 算(維持正方形,不會因為棋盤非正方形而被拉伸變形),中心點對齊原本的格子中心,
 蓋過鄰近格子,格線也拿掉了。障礙物改用 `_obstacleScale`(1.4倍)錨定格子底部放大(見上方「地圖」),
 沒有再疊白色外框(0x72素材本身輪廓對比已經夠清楚)。蛇身改成從尾畫到頭,確保放大後蛇頭蓋在身體上面。
+
+**攻擊命中橫幅**(`lib/screens/game_screen.dart` 的 `_AttackHitBanner`):從畫面中央的右邊滑入、短暫停留、
+再繼續往左滑出畫面(`TweenSequence` 驅動一個2秒的 `AnimationController`,在 `GameController.showAttackHitBanner`
+從false翻true的當下觸發一次進場→停留→出場的完整動畫,不是像舊版那樣單純在兩個位置間來回)。
 
 **UI**:`assets/ui/crosshair.png` 是 Kenney Crosshair Pack(CC0授權)裡的 `PNG/Outline (2x)/crosshair-051.png`,
 用於攻擊來襲雙重警示的第二種提示(見上方「目前已實作」)。渲染邏輯在 `lib/screens/game_screen.dart` 的

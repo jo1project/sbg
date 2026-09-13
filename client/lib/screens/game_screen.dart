@@ -44,7 +44,7 @@ class GameScreen extends StatelessWidget {
                 ),
                 Positioned(top: 0, left: 0, right: 0, child: _TopBar(c: c)),
                 Positioned(bottom: 0, left: 0, right: 0, child: _BottomBelt(c: c)),
-                _AttackHitBanner(show: c.showAttackHitBanner),
+                _AttackHitBanner(show: c.showAttackHitBanner, screenWidth: constraints.maxWidth),
                 if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
                 if (c.incomingAttack != null) const _DodgeAlert(),
                 if (c.incomingAttack != null && c.mySnake.isNotEmpty)
@@ -236,28 +236,55 @@ class _DodgeAlert extends StatelessWidget {
   }
 }
 
-// 攻擊命中時從畫面上方滑入橫幅圖片,停留後滑出(見GameController.showAttackHitBanner)。
-// 定位在最外層Stack(預設就會clip,不會像之前那樣因為Clip.none而在「隱藏」狀態下還蓋在能量條上一直看得到)。
-class _AttackHitBanner extends StatelessWidget {
+// 攻擊命中時橫幅圖片從畫面中央的右邊滑入,經過中央短暫停留後繼續往左滑出畫面
+// (見GameController.showAttackHitBanner)。用一個2秒的AnimationController跑完整段
+// 「進場(右→中)→停留→出場(中→左)」,在show從false翻true的當下觸發一次,
+// 不像舊版(從上方滑入/退回)只是在show和false兩個位置之間來回。
+class _AttackHitBanner extends StatefulWidget {
   final bool show;
-  const _AttackHitBanner({required this.show});
+  final double screenWidth;
+  const _AttackHitBanner({required this.show, required this.screenWidth});
+
+  @override
+  State<_AttackHitBanner> createState() => _AttackHitBannerState();
+}
+
+class _AttackHitBannerState extends State<_AttackHitBanner> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
+  late final _position = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeOut)), weight: 25),
+    TweenSequenceItem(tween: ConstantTween(0.0), weight: 50),
+    TweenSequenceItem(tween: Tween(begin: 0.0, end: -1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 25),
+  ]).animate(_controller);
+
+  @override
+  void didUpdateWidget(covariant _AttackHitBanner old) {
+    super.didUpdateWidget(old);
+    if (widget.show && !old.show) _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-      top: show ? 64 : -160,
-      left: 0,
-      right: 0,
-      child: IgnorePointer(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: AspectRatio(
-              aspectRatio: 900 / 340,
-              child: Image.asset("assets/sprites/attack_banner.png", fit: BoxFit.contain),
-            ),
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _position,
+        builder: (context, child) => Center(
+          child: Transform.translate(
+            offset: Offset(_position.value * widget.screenWidth, 0),
+            child: child,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: AspectRatio(
+            aspectRatio: 900 / 340,
+            child: Image.asset("assets/sprites/attack_banner.png", fit: BoxFit.contain),
           ),
         ),
       ),

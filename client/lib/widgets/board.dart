@@ -11,6 +11,10 @@ import '../models/point.dart';
 // 蓋過鄰近格子,做出Q版放大的效果)
 const double _spriteScale = 3.0;
 
+// 蛇頭(英雄)/蛇身(哥布林)在_spriteScale基準上各自的額外縮放倍率
+const double _heroScale = 0.75; // 英雄縮小25%
+const double _goblinScale = 0.5; // 哥布林縮小50%
+
 // 障礙物圖示相對格子的放大倍率(0x72 DungeonTilesetII的圖案本身比16x16高,錨定格子底部往上延伸,
 // 做出類似深度的堆疊感,見 _drawObstacle)
 const double _obstacleScale = 1.4;
@@ -72,8 +76,8 @@ class _BoardPainter extends CustomPainter {
   // 格子中心點用cellW/cellH各自算(滿版地圖下棋盤不一定是正方形),但畫出來的圖案
   // 邊長用min(cellW,cellH)乘上倍率、寬高相同,維持素材原本比例(正方形),不會因為
   // 棋盤不是正方形就被拉伸變形。
-  Rect _enlargedCell(Point p, double cellW, double cellH) {
-    final s = math.min(cellW, cellH) * _spriteScale;
+  Rect _enlargedCell(Point p, double cellW, double cellH, double scaleFactor) {
+    final s = math.min(cellW, cellH) * _spriteScale * scaleFactor;
     final cx = p.x * cellW + cellW / 2;
     final cy = p.y * cellH + cellH / 2;
     return Rect.fromLTWH(cx - s / 2, cy - s / 2, s, s);
@@ -235,7 +239,7 @@ class _BoardPainter extends CustomPainter {
       final segDir = i == 0 ? dir : DirectionDelta.fromDelta(snake[i - 1] - p);
       final sprite = i == 0 ? CharacterSprites.hero : CharacterSprites.goblin;
       // 每節都往內縮7.5px,讓相鄰兩節之間多留15px距離,不要貼那麼近
-      final dest = _enlargedCell(p, cellW, cellH).deflate(7.5);
+      final dest = _enlargedCell(p, cellW, cellH, i == 0 ? _heroScale : _goblinScale).deflate(7.5);
       if (sprite == null) {
         // 素材尚未載入完成時的備援畫法
         final paint = Paint()..color = i == 0 ? Colors.lightGreenAccent : Colors.green;
