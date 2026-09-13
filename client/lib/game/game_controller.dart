@@ -469,7 +469,9 @@ class GameController extends ChangeNotifier {
       _startMoveLoop();
     }
 
-    if (isPaused || _frozenByDisconnect) {
+    // 攻擊命中橫幅顯示期間(見_triggerAttackHitBanner),雙方都暫停移動,
+    // 讓橫幅播完這段時間畫面上的蛇不會動,兩邊感受一致。
+    if (isPaused || _frozenByDisconnect || showAttackHitBanner) {
       notifyListeners();
       return;
     }

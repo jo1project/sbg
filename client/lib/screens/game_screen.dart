@@ -283,7 +283,7 @@ class _AttackHitBannerState extends State<_AttackHitBanner> with SingleTickerPro
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: AspectRatio(
-            aspectRatio: 900 / 340,
+            aspectRatio: 1000 / 460,
             child: Image.asset("assets/sprites/attack_banner.png", fit: BoxFit.contain),
           ),
         ),
