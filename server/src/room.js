@@ -12,6 +12,16 @@ function isWalkable(map, pos) {
   return zones.some((z) => pos.x >= z.x0 && pos.x <= z.x1 && pos.y >= z.y0 && pos.y <= z.y1);
 }
 
+/**
+ * 障礙物實際佔用的格子清單。一般障礙物只佔自己那一格;size:"big"的大型怪物
+ * (big_demon/big_zombie/ogre)素材寬度是一般怪物的兩倍,水平方向多佔右邊一格
+ * (規格文件2.4節)。
+ */
+function obstacleCells(o) {
+  if (o.size === "big") return [{ x: o.x, y: o.y }, { x: o.x + 1, y: o.y }];
+  return [{ x: o.x, y: o.y }];
+}
+
 /** 從地圖的房間+走廊範圍內隨機選一格可通行座標 */
 function randomWalkableCell(map) {
   if (!map) return null;
@@ -87,7 +97,7 @@ export class Room {
     const occupied = (pos) => {
       if ([...myFoods.values()].some((f) => f.x === pos.x && f.y === pos.y)) return true;
       if (player.snakeBody && player.snakeBody.some((c) => c.x === pos.x && c.y === pos.y)) return true;
-      if (mapObstacles.some((o) => o.x === pos.x && o.y === pos.y)) return true;
+      if (mapObstacles.some((o) => obstacleCells(o).some((c) => c.x === pos.x && c.y === pos.y))) return true;
       return false;
     };
 
@@ -319,7 +329,7 @@ export class Room {
     }
     if (cause === "obstacle") {
       const list = map?.obstacles || [];
-      return list.some((o) => o.x === headPos.x && o.y === headPos.y);
+      return list.some((o) => obstacleCells(o).some((c) => c.x === headPos.x && c.y === headPos.y));
     }
     return false; // 未知死因,直接視為不合法
   }

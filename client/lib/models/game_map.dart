@@ -16,16 +16,21 @@ class MapZone {
 }
 
 // type: crate | column | chest | monster;species 只有 monster 才有值(見規格文件7.7節)
+// size: "big" 的大型怪物(big_demon/big_zombie/ogre)素材寬度是一般怪物的兩倍,
+// 水平方向多佔右邊一格,碰撞/繪製都要涵蓋整個 cells(見 game/collision.dart、widgets/board.dart)
 class MapObstacle {
   final Point pos;
   final String type;
   final String? species;
-  const MapObstacle(this.pos, this.type, this.species);
+  final String? size;
+  const MapObstacle(this.pos, this.type, this.species, [this.size]);
+
+  List<Point> get cells => size == "big" ? [pos, Point(pos.x + 1, pos.y)] : [pos];
 
   static MapObstacle? fromJson(Map<String, dynamic>? j) {
     final pos = Point.fromJson(j);
     if (pos == null || j == null) return null;
-    return MapObstacle(pos, j["type"] as String? ?? "crate", j["species"] as String?);
+    return MapObstacle(pos, j["type"] as String? ?? "crate", j["species"] as String?, j["size"] as String?);
   }
 }
 

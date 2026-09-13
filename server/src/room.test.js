@@ -25,6 +25,13 @@ assert.equal(room.validateDeathReport("A", "obstacle", { x: 7, y: 7 }), true);
 assert.equal(room.validateDeathReport("A", "obstacle", { x: 1, y: 1 }), false, "那是對方的障礙物,不是自己的");
 assert.equal(room.validateDeathReport("B", "obstacle", { x: 1, y: 1 }), true);
 
+// 撞障礙物:size:"big"的大型怪物素材寬度是一般的兩倍,水平方向多佔右邊一格,
+// 撞到footprint裡的任一格都算數(見 room.js 的 obstacleCells())
+room.maps["A"] = { rooms: [{ x0: 0, x1: 11, y0: 0, y1: 23 }], corridors: [], obstacles: [{ x: 5, y: 5, type: "monster", species: "ogre", size: "big" }] };
+assert.equal(room.validateDeathReport("A", "obstacle", { x: 5, y: 5 }), true, "大型怪物左格(錨點)算撞到");
+assert.equal(room.validateDeathReport("A", "obstacle", { x: 6, y: 5 }), true, "大型怪物右格(多佔的footprint)也算撞到");
+assert.equal(room.validateDeathReport("A", "obstacle", { x: 4, y: 5 }), false, "大型怪物footprint以外不算撞到");
+
 // 撞牆/牆體:落在地圖的房間/走廊範圍之外(黑色虛空)也算撞牆,即使沒超出地圖邊界
 room.maps["A"] = {
   rooms: [{ x0: 1, x1: 10, y0: 1, y1: 4 }],
@@ -80,11 +87,12 @@ for (const id of ["C", "D"]) {
 
   const foodMsgs = sentMessages[id].filter((m) => m.type === "food_spawned");
   assert.equal(foodMsgs.length, CONFIG.FOOD_COUNT, "房間建立時應補滿恆定食物數量");
+  const obstacleCellsOf = (o) => (o.size === "big" ? [{ x: o.x, y: o.y }, { x: o.x + 1, y: o.y }] : [{ x: o.x, y: o.y }]);
   for (const { payload } of foodMsgs) {
     assert.ok(isInZones(map, payload.position), "食物只能生成在房間/走廊可通行範圍內");
     assert.ok(
-      !map.obstacles.some((o) => o.x === payload.position.x && o.y === payload.position.y),
-      "食物不該生成在障礙物座標上"
+      !map.obstacles.some((o) => obstacleCellsOf(o).some((c) => c.x === payload.position.x && c.y === payload.position.y)),
+      "食物不該生成在障礙物座標上(含大型怪物多佔的footprint格)"
     );
   }
 }

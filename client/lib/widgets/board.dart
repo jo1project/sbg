@@ -178,13 +178,17 @@ class _BoardPainter extends CustomPainter {
 
   // 障礙物圖案本身比16x16高(木箱/石柱/怪物立繪),錨定格子底部往上延伸,
   // 做出類似深度堆疊的視覺效果,而不是硬塞進單一格子裡拉伸變形。
-  void _drawObstacle(Canvas canvas, ui.Image img, Point cell, double cellW, double cellH) {
+  // 大型怪物(size:"big")的素材寬度是一般的兩倍,寬度基準改成整個footprint(2格),
+  // 並以footprint中心對齊,而不是只塞進單一格子裡。
+  void _drawObstacle(Canvas canvas, ui.Image img, MapObstacle o, double cellW, double cellH) {
+    final footprintCells = o.cells.length;
     final cellSize = math.min(cellW, cellH);
-    final scale = cellSize / img.width.toDouble() * _obstacleScale;
+    final scale = cellSize * footprintCells / img.width.toDouble() * _obstacleScale;
     final w = img.width * scale;
     final h = img.height * scale;
-    final cx = cell.x * cellW + cellW / 2;
-    final bottomY = cell.y * cellH + cellH;
+    final spanWidthPx = footprintCells * cellW;
+    final cx = o.pos.x * cellW + spanWidthPx / 2;
+    final bottomY = o.pos.y * cellH + cellH;
     final dest = Rect.fromLTWH(cx - w / 2, bottomY - h, w, h);
     final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
     canvas.drawImageRect(img, src, dest, Paint()..filterQuality = FilterQuality.none);
@@ -212,7 +216,7 @@ class _BoardPainter extends CustomPainter {
       for (final o in map.obstacles) {
         if (!_visible(o.pos)) continue;
         final img = _obstacleImage(o);
-        if (img != null) _drawObstacle(canvas, img, o.pos, cellW, cellH);
+        if (img != null) _drawObstacle(canvas, img, o, cellW, cellH);
       }
     }
 

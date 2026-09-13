@@ -1,0 +1,91 @@
+{
+  "mapId": "map_03",
+  "gridCols": 12,
+  "gridRows": 24,
+  "rooms": [
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 1,
+      "y1": 22
+    }
+  ],
+  "corridors": [],
+  "spawnPos": {
+    "x": 6,
+    "y": 12
+  },
+  "obstacles": [
+    {
+      "x": 2,
+      "y": 3,
+      "type": "monster",
+      "species": "big_demon",
+      "size": "big"
+    },
+    {
+      "x": 7,
+      "y": 8,
+      "type": "monster",
+      "species": "big_zombie",
+      "size": "big"
+    },
+    {
+      "x": 5,
+      "y": 18,
+      "type": "monster",
+      "species": "ogre",
+      "size": "big"
+    },
+    {
+      "x": 6,
+      "y": 3,
+      "type": "column"
+    },
+    {
+      "x": 7,
+      "y": 16,
+      "type": "column"
+    },
+    {
+      "x": 2,
+      "y": 16,
+      "type": "crate"
+    },
+    {
+      "x": 2,
+      "y": 9,
+      "type": "monster",
+      "species": "skelet",
+      "size": "small"
+    },
+    {
+      "x": 4,
+      "y": 7,
+      "type": "monster",
+      "species": "chort",
+      "size": "small"
+    },
+    {
+      "x": 9,
+      "y": 4,
+      "type": "monster",
+      "species": "chort",
+      "size": "small"
+    },
+    {
+      "x": 7,
+      "y": 20,
+      "type": "monster",
+      "species": "skelet",
+      "size": "small"
+    },
+    {
+      "x": 3,
+      "y": 21,
+      "type": "monster",
+      "species": "chort",
+      "size": "small"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 import 'sprite_loader.dart';
 
 // 怪物哨兵可選種類,見規格文件2.4節
-const monsterSpecies = ["goblin", "skelet", "imp", "chort"];
+const monsterSpecies = ["goblin", "skelet", "imp", "chort", "big_demon", "big_zombie", "ogre"];
 
 // 棋盤地板/牆體/障礙物美術素材(0x72 DungeonTilesetII,CC0),見 client/README.md「美術素材」一節。
 class MapSprites {

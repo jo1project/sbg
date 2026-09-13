@@ -18,34 +18,42 @@ class GameScreen extends StatelessWidget {
       body: SafeArea(
         // 地圖滿版鋪整個畫面,能量條/搖桿/攻擊鍵都是半透明浮在地圖上面的overlay,
         // 不再用Column把畫面切成一塊一塊、把地圖擠成中間一個正方形留大片黑邊。
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: c.incomingAttack != null ? Colors.redAccent : Colors.transparent,
-                    width: 4,
+        // LayoutBuilder包住Stack才能拿到跟Board的CustomPaint一致的畫面尺寸,
+        // 用來換算_AttackCrosshairIndicator該疊在蛇頭正上方哪個像素位置(見該widget)。
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: c.incomingAttack != null ? Colors.redAccent : Colors.transparent,
+                        width: 4,
+                      ),
+                    ),
+                    child: Board(
+                      snake: c.mySnake,
+                      foods: c.myFoods.values.toList(),
+                      map: c.map,
+                      dir: c.dir,
+                      blind: c.isBlind,
+                      moveTick: c.moveTick,
+                    ),
                   ),
                 ),
-                child: Board(
-                  snake: c.mySnake,
-                  foods: c.myFoods.values.toList(),
-                  map: c.map,
-                  dir: c.dir,
-                  blind: c.isBlind,
-                  moveTick: c.moveTick,
-                ),
-              ),
-            ),
-            Positioned(top: 0, left: 0, right: 0, child: _TopBar(c: c)),
-            Positioned(bottom: 0, left: 0, right: 0, child: _BottomBelt(c: c)),
-            _AttackHitBanner(show: c.showAttackHitBanner),
-            if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
-            if (c.incomingAttack != null) const _DodgeAlert(),
-            if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
-            if (c.gameOver != null) _GameOverOverlay(c: c),
-          ],
+                Positioned(top: 0, left: 0, right: 0, child: _TopBar(c: c)),
+                Positioned(bottom: 0, left: 0, right: 0, child: _BottomBelt(c: c)),
+                _AttackHitBanner(show: c.showAttackHitBanner),
+                if (c.opponentDisconnectGraceSec != null) _DisconnectBanner(sec: c.opponentDisconnectGraceSec!),
+                if (c.incomingAttack != null) const _DodgeAlert(),
+                if (c.incomingAttack != null && c.mySnake.isNotEmpty)
+                  _AttackCrosshairIndicator(headPos: c.mySnake.first, boardSize: constraints.biggest),
+                if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
+                if (c.gameOver != null) _GameOverOverlay(c: c),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -158,6 +166,49 @@ class _DisconnectBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
           child: Text("對手連線中斷,等待重連... $sec", style: const TextStyle(color: Colors.white)),
+        ),
+      ),
+    );
+  }
+}
+
+// 攻擊來襲時,除了畫面邊緣的紅框(見上方DecoratedBox),額外在被攻擊方(自己)的蛇頭
+// 正上方疊一個閃爍的瞄準圖案(Kenney Crosshair Pack, CC0授權),雙重提示更醒目。
+// 只在有incomingAttack時才會被mount,State的生命週期跟著攻擊視窗自動開始/結束,
+// 不需要另外在GameController裡管理blink計時器。
+class _AttackCrosshairIndicator extends StatefulWidget {
+  final Point headPos;
+  final Size boardSize;
+  const _AttackCrosshairIndicator({required this.headPos, required this.boardSize});
+
+  @override
+  State<_AttackCrosshairIndicator> createState() => _AttackCrosshairIndicatorState();
+}
+
+class _AttackCrosshairIndicatorState extends State<_AttackCrosshairIndicator> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 300))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 36.0;
+    final cellW = widget.boardSize.width / GameConfig.mapWidth;
+    final cellH = widget.boardSize.height / GameConfig.mapHeight;
+    final left = widget.headPos.x * cellW + cellW / 2 - size / 2;
+    final top = widget.headPos.y * cellH - size; // 貼著蛇頭那一格的上緣,往上疊
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: FadeTransition(
+          opacity: _controller,
+          child: Image.asset('assets/ui/crosshair.png', width: size, height: size),
         ),
       ),
     );

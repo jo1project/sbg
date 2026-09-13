@@ -42,6 +42,22 @@ void main() {
     expect(checkDeath(const Point(3, 4), const [], grow: false, map: testMap).cause, null);
   });
 
+  const bigMonsterMap = GameMap(
+    mapId: "test_big",
+    gridCols: 12,
+    gridRows: 24,
+    rooms: [MapZone(x0: 0, x1: 11, y0: 0, y1: 23)],
+    corridors: [],
+    spawnPos: Point(5, 2),
+    obstacles: [MapObstacle(Point(5, 5), "monster", "ogre", "big")],
+  );
+
+  test('撞障礙物:size為big的大型怪物素材是一般的兩倍寬,撞到多佔的右邊那格也算死亡', () {
+    expect(checkDeath(const Point(5, 5), const [], grow: false, map: bigMonsterMap).cause, "obstacle", reason: "錨點格");
+    expect(checkDeath(const Point(6, 5), const [], grow: false, map: bigMonsterMap).cause, "obstacle", reason: "多佔的footprint格");
+    expect(checkDeath(const Point(4, 5), const [], grow: false, map: bigMonsterMap).cause, null, reason: "footprint以外不算撞到");
+  });
+
   test('advanceSnake:非成長移除尾巴,成長保留尾巴', () {
     final body = [const Point(5, 5), const Point(5, 6), const Point(5, 7)];
     final moved = advanceSnake(body, const Point(5, 4), grow: false);

@@ -10,7 +10,7 @@
 - 本地預測的蛇身移動與碰撞(撞牆/撞自己),死亡後送 `death_report` 給伺服器驗證
 - 吃食物本地樂觀更新能量,由伺服器 `energy_update` 校正權威值
 - 攻擊(直接/隨機效果)發動、1秒閃躲(放開搖桿觸發,見下方「已知限制」)
-- 對手能量條、模糊小地圖(每2秒更新)、攻擊警示外框
+- 對手能量條、模糊小地圖(每2秒更新)、攻擊警示雙重提示(邊緣閃爍外框 + 蛇頭正上方閃爍瞄準圖案)
 - Random效果套用(加速影響移動間隔、暫停凍結操作、致盲遮蔽畫面)
 - 防Spam自懲、對手斷線倒數、Double KO/勝負結果畫面
 - 蛇頭/蛇身像素角色動畫、固定地圖池(手工設計房間+走廊+障礙物,雙方各自獨立隨機抽一張,撞到障礙物或牆體判死亡)(見下方「美術素材」)
@@ -54,17 +54,29 @@
 - **走廊**:不畫實體牆、維持淨空,只在上下邊緣(非開口處)疊一條半透明白線標示地板邊界
   (`_paintCorridorEdges()`,ponytail簡化版,沒有另外接素材包的`wall_edge_*`薄磚)
 - **障礙物**(4類,見規格2.4節):`crate`木箱、`column`石柱、`chest`寶箱(`chest_full_open_anim_f0`)、
-  `monster`怪物哨兵(固定原地不動,4格待機動畫循環播放,物種`species`由伺服器從
-  goblin/skelet/imp/chort隨機挑一種,動畫frame跟`moveTick`同步循環,見`MapSprites.monsterIdle`)。
-  圖案本身比16x16高(木箱/石柱/怪物立繪),錨定格子底部往上延伸畫,不是硬塞進單一格子裡拉伸
-  (`_drawObstacle()`)。撞到障礙物或牆體(含房間/走廊範圍外的虛空)皆判死亡,伺服器端也會驗證
-  (`room.js` 的 `validateDeathReport()` 吃地圖資料)。載入邏輯在 `lib/game/map_sprites.dart`,跟
-  `CharacterSprites` 共用 `lib/game/sprite_loader.dart` 的圖片載入函式。
+  `monster`怪物哨兵(固定原地不動,4格待機動畫循環播放,物種`species`由伺服器指定,動畫frame跟
+  `moveTick`同步循環,見`MapSprites.monsterIdle`)。小型怪物(goblin/skelet/imp/chort)佔1格;
+  大型怪物(big_demon/big_zombie/ogre,`size:"big"`)素材寬度是一般的兩倍,水平多佔右邊一格
+  (`MapObstacle.cells`,兩格都算碰撞範圍),`_drawObstacle()`會依`cells.length`把寬度基準改成
+  整個footprint、置中對齊,而不是塞進單一格子。圖案本身比16x16高(木箱/石柱/怪物立繪),錨定格子
+  底部往上延伸畫,不是硬塞進單一格子裡拉伸。撞到障礙物或牆體(含房間/走廊範圍外的虛空)皆判死亡,
+  伺服器端也會驗證(`room.js` 的 `validateDeathReport()`/`obstacleCells()` 吃地圖資料)。載入邏輯在
+  `lib/game/map_sprites.dart`,跟 `CharacterSprites` 共用 `lib/game/sprite_loader.dart` 的圖片載入函式。
+  目前地圖池有三張(`server/maps/map_01~03.json`):地圖1/2是房間+走廊佈局、只用小型怪物;地圖3是
+  單一大房間、放了三隻大型怪物。
 
 **放大與外框**(`lib/widgets/board.dart`):蛇身每一節用 `_spriteScale`(3倍)放大畫,邊長固定用
 `min(cellW, cellH)` 算(維持正方形,不會因為棋盤非正方形而被拉伸變形),中心點對齊原本的格子中心,
 蓋過鄰近格子,格線也拿掉了。障礙物改用 `_obstacleScale`(1.4倍)錨定格子底部放大(見上方「地圖」),
 沒有再疊白色外框(0x72素材本身輪廓對比已經夠清楚)。蛇身改成從尾畫到頭,確保放大後蛇頭蓋在身體上面。
+
+**UI**:`assets/ui/crosshair.png` 是 Kenney Crosshair Pack(CC0授權)裡的 `PNG/Outline (2x)/crosshair-051.png`,
+用於攻擊來襲雙重警示的第二種提示(見上方「目前已實作」)。渲染邏輯在 `lib/screens/game_screen.dart` 的
+`_AttackCrosshairIndicator`:只在 `c.incomingAttack != null` 時才 mount 這個 StatefulWidget,用
+`AnimationController`(300ms、`repeat(reverse: true)`)驅動 `FadeTransition` 做閃爍效果,State生命週期
+跟著攻擊視窗自動開始/結束,不需要另外在 `GameController` 裡管理計時器。位置用 `LayoutBuilder` 包住外層
+`Stack` 拿到的畫面尺寸換算 `cellW`/`cellH`(跟 `Board` 的 `CustomPaint` 算法一致),疊在自己蛇頭
+(`c.mySnake.first`)那一格的正上方。
 
 ## 開發
 

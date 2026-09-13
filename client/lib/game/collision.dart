@@ -24,7 +24,7 @@ DeathCheck checkDeath(Point newHead, List<Point> body, {required bool grow, Game
   if (bodyToCheck.contains(newHead)) {
     return const DeathCheck("self");
   }
-  if (map != null && map.obstacles.any((o) => o.pos == newHead)) {
+  if (map != null && map.obstacles.any((o) => o.cells.contains(newHead))) {
     return const DeathCheck("obstacle");
   }
   return const DeathCheck(null);
