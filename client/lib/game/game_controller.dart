@@ -52,6 +52,7 @@ class GameController extends ChangeNotifier {
 
   String? opponentId;
   String? incomingInviteFromId; // 收到別人邀請待回應
+  List<String> recentOpponents = []; // 連線記錄:曾經對戰過的對象ID,最新的在最前面
   String? banner; // 一次性訊息(邀請失敗/攻擊被拒/連線異常等),顯示後淡出
 
   double myEnergy = 0;
@@ -89,6 +90,16 @@ class GameController extends ChangeNotifier {
   Future<void> bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     playerId = prefs.getString("playerId");
+    recentOpponents = prefs.getStringList("recentOpponents") ?? [];
+  }
+
+  Future<void> _recordOpponent(String id) async {
+    recentOpponents.remove(id);
+    recentOpponents.insert(0, id);
+    if (recentOpponents.length > 10) recentOpponents = recentOpponents.sublist(0, 10);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList("recentOpponents", recentOpponents);
+    notifyListeners();
   }
 
   Future<void> connectAndIdentify() async {
@@ -264,6 +275,7 @@ class GameController extends ChangeNotifier {
 
       case Ev.matchFound:
         opponentId = msg["opponentId"] as String?;
+        if (opponentId != null) _recordOpponent(opponentId!);
         _startMatch();
         break;
 

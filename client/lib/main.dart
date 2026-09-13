@@ -192,6 +192,22 @@ class _LobbyMenu extends StatelessWidget {
               ),
             ],
           ),
+          if (controller.recentOpponents.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const Align(alignment: Alignment.centerLeft, child: Text("連線記錄", style: TextStyle(color: Colors.white70))),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final id in controller.recentOpponents)
+                  ActionChip(
+                    label: Text(id),
+                    onPressed: () => controller.challengeFriend(id),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
