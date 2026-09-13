@@ -42,6 +42,7 @@ class GameController extends ChangeNotifier {
   Timer? _pingTimer;
   Timer? _disconnectCountdownTimer;
   Timer? _bannerClearTimer;
+  Timer? _preGameCountdownTimer;
 
   ConnStatus connStatus = ConnStatus.disconnected;
   MatchStatus matchStatus = MatchStatus.idle;
@@ -61,6 +62,7 @@ class GameController extends ChangeNotifier {
   Direction? _pendingDir;
   int _growthPending = 0;
   int moveTick = 0; // 每次實際移動+1,驅動走路動畫的欄位切換(見 CharacterSprites)
+  int? countdown; // 對戰開始前的3-2-1倒數,見 _startPreGameCountdown;null代表倒數已結束/未開始
 
   final Map<String, Point> myFoods = {};
   GameMap? map; // 固定地圖池抽到的地圖,伺服器房間建立時一次性推送,整局不變動,見 room.js sendMapToPlayer
@@ -437,8 +439,26 @@ class GameController extends ChangeNotifier {
     _pendingDir = null;
     mySnake = List.generate(GameConfig.initialSnakeLength, (i) => Point(start.x - i, start.y));
 
-    _startMoveLoop();
-    _startPositionSync();
+    _startPreGameCountdown();
+  }
+
+  // 對戰畫面(棋盤/雙方初始蛇身)先完整顯示,倒數3-2-1結束才真的開始移動+回報位置,
+  // 純client端各自倒數,不等伺服器同步(誤差最多一次網路延遲,不影響對戰公平性)。
+  void _startPreGameCountdown() {
+    _preGameCountdownTimer?.cancel();
+    countdown = 3;
+    _preGameCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      final left = (countdown ?? 1) - 1;
+      if (left <= 0) {
+        t.cancel();
+        countdown = null;
+        _startMoveLoop();
+        _startPositionSync();
+      } else {
+        countdown = left;
+      }
+      notifyListeners();
+    });
   }
 
   void _resetMatchState() {
@@ -449,6 +469,7 @@ class GameController extends ChangeNotifier {
     map = null;
     _bannerClearTimer?.cancel();
     banner = null;
+    countdown = null;
     _stopMatchTimers();
     notifyListeners();
   }
@@ -553,6 +574,7 @@ class GameController extends ChangeNotifier {
     _moveTimer?.cancel();
     _positionSyncTimer?.cancel();
     _disconnectCountdownTimer?.cancel();
+    _preGameCountdownTimer?.cancel();
   }
 
   @override

@@ -50,6 +50,7 @@ class GameScreen extends StatelessWidget {
                 if (c.incomingAttack != null && c.mySnake.isNotEmpty)
                   _AttackCrosshairIndicator(headPos: c.mySnake.first, boardSize: constraints.biggest),
                 if (c.banner != null) _Banner(text: c.banner!, onClose: c.clearBanner),
+                if (c.countdown != null) _PreGameCountdown(value: c.countdown!),
                 if (c.gameOver != null) _GameOverOverlay(c: c),
               ],
             );
@@ -209,6 +210,29 @@ class _AttackCrosshairIndicatorState extends State<_AttackCrosshairIndicator> wi
         child: FadeTransition(
           opacity: _controller,
           child: Image.asset('assets/ui/crosshair.png', width: size, height: size),
+        ),
+      ),
+    );
+  }
+}
+
+// 對戰開始前的3-2-1倒數(見GameController._startPreGameCountdown),蓋滿整個畫面,
+// 蛇/地圖都已經在後面畫好,倒數期間_tick()還沒開始跑,蛇不會動。
+class _PreGameCountdown extends StatelessWidget {
+  final int value;
+  const _PreGameCountdown({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          color: Colors.black45,
+          alignment: Alignment.center,
+          child: Text(
+            "$value",
+            style: const TextStyle(color: Colors.white, fontSize: 96, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );
