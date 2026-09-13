@@ -13,7 +13,7 @@ const double _spriteScale = 3.0;
 
 // 蛇頭(英雄)/蛇身(哥布林)在_spriteScale基準上各自的額外縮放倍率
 const double _heroScale = 0.75; // 英雄縮小25%
-const double _goblinScale = 0.5; // 哥布林縮小50%
+const double _goblinScale = 0.75; // 哥布林在縮小50%(0.5)的基礎上再放大50%
 
 // 障礙物圖示相對格子的放大倍率(0x72 DungeonTilesetII的圖案本身比16x16高,錨定格子底部往上延伸,
 // 做出類似深度的堆疊感,見 _drawObstacle)
