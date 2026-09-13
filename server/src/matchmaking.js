@@ -18,7 +18,8 @@ export class Matchmaker {
       // TODO(debug): 查「玩幾場後卡busy配不到對戰」問題用,查到根因後移除。
       console.log(
         `[busy] join_queue player=${player.id} roomId=${player.roomId} inQueue=${player.inQueue} ` +
-          `outgoingInvite=${JSON.stringify(player.outgoingInvite)} incomingInvite=${JSON.stringify(player.incomingInvite)}`
+          `outgoingInvite=${JSON.stringify(player.outgoingInvite)} incomingInvite=${JSON.stringify(player.incomingInvite)} ` +
+          `device=${player.deviceInfo}`
       );
       return player.send(S2C.INVITE_FAILED, { reason: "busy" }); // 理論上前端應先擋,這裡雙重保險
     }
@@ -67,7 +68,8 @@ export class Matchmaker {
       // TODO(debug): 查「玩幾場後卡busy配不到對戰」問題用,查到根因後移除。
       console.log(
         `[busy] challenge(self) player=${fromPlayer.id} roomId=${fromPlayer.roomId} inQueue=${fromPlayer.inQueue} ` +
-          `outgoingInvite=${JSON.stringify(fromPlayer.outgoingInvite)} incomingInvite=${JSON.stringify(fromPlayer.incomingInvite)}`
+          `outgoingInvite=${JSON.stringify(fromPlayer.outgoingInvite)} incomingInvite=${JSON.stringify(fromPlayer.incomingInvite)} ` +
+          `device=${fromPlayer.deviceInfo}`
       );
       return fromPlayer.send(S2C.INVITE_FAILED, { reason: "self_busy" });
     }
@@ -82,7 +84,8 @@ export class Matchmaker {
       // TODO(debug): 查「玩幾場後卡busy配不到對戰」問題用,查到根因後移除。
       console.log(
         `[busy] challenge(target) target=${target.id} roomId=${target.roomId} inQueue=${target.inQueue} ` +
-          `outgoingInvite=${JSON.stringify(target.outgoingInvite)} incomingInvite=${JSON.stringify(target.incomingInvite)}`
+          `outgoingInvite=${JSON.stringify(target.outgoingInvite)} incomingInvite=${JSON.stringify(target.incomingInvite)} ` +
+          `device=${target.deviceInfo}`
       );
       return fromPlayer.send(S2C.INVITE_FAILED, { reason: "target_busy", targetPlayerId });
     }

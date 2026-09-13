@@ -38,6 +38,9 @@ dependencies:
   # 本地儲存 playerId/還原碼/伺服器位址(WebSocket連線用 dart:io,不需額外套件)
   shared_preferences: ^2.3.3
 
+  # identify時回報裝置廠牌/型號給伺服器,方便排查特定廠牌(如小米背景省電機制)造成的連線問題
+  device_info_plus: ^11.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

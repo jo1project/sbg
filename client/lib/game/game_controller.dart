@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -116,8 +118,24 @@ class GameController extends ChangeNotifier {
     _socket.messages.listen(_onMessage);
     _socket.onDone.listen((_) => _onDisconnected());
     connStatus = ConnStatus.connected;
-    _socket.send(Ev.identify, playerId == null ? {} : {"playerId": playerId});
+    final deviceInfo = await _collectDeviceInfo();
+    _socket.send(Ev.identify, {if (playerId != null) "playerId": playerId, "deviceInfo": deviceInfo});
     _startPing();
+  }
+
+  // 用來排查特定廠牌(如小米背景省電機制)造成的殭屍連線問題,伺服器debug log會印出來
+  Future<String> _collectDeviceInfo() async {
+    try {
+      final plugin = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final info = await plugin.androidInfo;
+        return "Android ${info.manufacturer} ${info.model} (SDK ${info.version.sdkInt})";
+      } else if (Platform.isIOS) {
+        final info = await plugin.iosInfo;
+        return "iOS ${info.utsname.machine} (${info.systemVersion})";
+      }
+    } catch (_) {}
+    return Platform.operatingSystem;
   }
 
   void _onDisconnected() {

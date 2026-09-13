@@ -14,6 +14,7 @@ export class Player {
     this.rttMs = 60; // 初始假設值,ping/pong後持續更新(滑動平均)
     this.connected = true;
     this.disconnectTimer = null;
+    this.deviceInfo = "unknown"; // identify時客戶端回報,debug log排查特定廠牌連線問題用
 
     this.inQueue = false;               // 是否在隨機配對佇列中
     this.outgoingInvite = null;         // { targetId, timeoutTimer } 我方發出、尚未有結果的邀請

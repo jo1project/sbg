@@ -83,6 +83,7 @@ wss.on("connection", (ws) => {
         // 寬限期內重連:重新綁定 ws,保留原本的能量/effect/房間狀態
         existingConn.ws = ws;
         existingConn.connected = true;
+        existingConn.deviceInfo = msg.deviceInfo || existingConn.deviceInfo;
         clearTimeout(existingConn.disconnectTimer);
         player = existingConn;
         wsToPlayerId.set(ws, playerId);
@@ -102,11 +103,12 @@ wss.on("connection", (ws) => {
         // 代表舊ws可能還沒真的關閉就建立了新連線,新Player會蓋掉舊的,舊的可能還卡在某個房間裡。
         console.log(
           `[busy] identify遇到還連著的舊entry player=${playerId} oldRoomId=${existingConn.roomId} ` +
-            `oldInQueue=${existingConn.inQueue}`
+            `oldInQueue=${existingConn.inQueue} device=${existingConn.deviceInfo}`
         );
       }
 
       player = new Player(playerId, ws);
+      player.deviceInfo = msg.deviceInfo || "unknown";
       onlinePlayers.set(playerId, player);
       wsToPlayerId.set(ws, playerId);
 
