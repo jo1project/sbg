@@ -21,7 +21,27 @@ function getRoom(player) {
   return matchmaker.rooms.get(player.roomId);
 }
 
+// 偵測「TCP連線已死但close事件從未觸發」的殭屍連線(手機網路突然中斷/APP被系統強制終止
+// 等情況常見,尤其Android不像iOS會明快地讓socket斷開)。沒有這個心跳機制,player.roomId會
+// 永遠卡住,之後配對/挑戰好友一律回busy——這正是「玩幾場後卡busy」問題的根本原因。
+const HEARTBEAT_MS = 30000;
+function heartbeat() {
+  this.isAlive = true;
+}
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      ws.terminate(); // 觸發下面的 ws.on("close"),走既有的房間/佇列清理邏輯
+      continue;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, HEARTBEAT_MS);
+
 wss.on("connection", (ws) => {
+  ws.isAlive = true;
+  ws.on("pong", heartbeat);
   let player = null; // 需等待客戶端送出 identify 後才建立/綁定
 
   ws.on("message", (raw) => {
