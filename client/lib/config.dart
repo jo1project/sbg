@@ -7,7 +7,7 @@ class GameConfig {
   static const previewDelayMs = 1000;
   static const energyCap = 10;
   static const initialSnakeLength = 4;
-  static const moveTickMs = 275; // 一般移動速度(格/次),非規格明定數值,先估計
+  static const moveTickMs = 325; // 一般移動速度(格/次),非規格明定數值,先估計
   static const speedupTickMs = 160; // 加速效果下的移動間隔
 
   // 火把/模糊景深/暖冷色調/暗角/陰影,見widgets/board.dart。低階裝置掉幀時可關閉退回清晰版本。
