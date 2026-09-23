@@ -93,6 +93,7 @@ class GameController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     playerId = prefs.getString("playerId");
     recentOpponents = prefs.getStringList("recentOpponents") ?? [];
+    GameConfig.highQualityLighting = prefs.getBool("highQualityLighting") ?? true;
   }
 
   Future<void> _recordOpponent(String id) async {

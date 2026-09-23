@@ -3,6 +3,7 @@ import 'game/character_sprites.dart';
 import 'game/game_controller.dart';
 import 'game/map_sprites.dart';
 import 'screens/game_screen.dart';
+import 'screens/settings_screen.dart';
 
 void main() {
   runApp(const SnakeBattleApp());
@@ -164,7 +165,17 @@ class _LobbyMenu extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text("貪食蛇對戰", style: TextStyle(fontSize: 28)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("貪食蛇對戰", style: TextStyle(fontSize: 28)),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white70),
+                tooltip: "設定",
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Text("你的ID:${controller.playerId ?? "-"}", style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 32),

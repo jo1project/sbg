@@ -162,6 +162,80 @@ class _BoardPainter extends CustomPainter {
     }
   }
 
+  // 手繪火把(沒有現成素材,用canvas原生圖形畫木壁架+雙層火焰+暖色光暈):
+  // 房間左右牆面各挑最多3個非開口的格子掛壁架火把,每根石柱(column障礙物)頂端另加一個無壁架版本。
+  void _paintTorches(Canvas canvas, GameMap map, double cellW, double cellH) {
+    for (final room in map.rooms) {
+      _wallTorches(canvas, map, room.x0 - 1, room.y0, room.y1, cellW, cellH, pointRight: true);
+      _wallTorches(canvas, map, room.x1 + 1, room.y0, room.y1, cellW, cellH, pointRight: false);
+    }
+    for (final o in map.obstacles) {
+      if (o.type != "column") continue;
+      final cx = o.pos.x * cellW + cellW / 2;
+      final topY = o.pos.y * cellH;
+      _drawTorch(canvas, Offset(cx, topY), math.min(cellW, cellH), withBracket: false, pointRight: true);
+    }
+  }
+
+  void _wallTorches(Canvas canvas, GameMap map, int wallX, int y0, int y1, double cellW, double cellH, {required bool pointRight}) {
+    final wallYs = [for (var y = y0; y <= y1; y++) y].where((y) => !map.isWalkable(Point(wallX, y))).toList();
+    for (final y in _evenSpaced(wallYs, 3)) {
+      final cx = wallX * cellW + cellW / 2;
+      final cy = y * cellH + cellH * 0.4;
+      _drawTorch(canvas, Offset(cx, cy), math.min(cellW, cellH), withBracket: true, pointRight: pointRight);
+    }
+  }
+
+  // 從清單裡挑最多count個大致平均分布的元素(用於火把間距),清單本身不夠就全部回傳。
+  List<int> _evenSpaced(List<int> items, int count) {
+    if (items.length <= count) return items;
+    return [for (var i = 0; i < count; i++) items[(i * (items.length - 1) / (count - 1)).round()]];
+  }
+
+  void _drawTorch(Canvas canvas, Offset base, double cellSize, {required bool withBracket, required bool pointRight}) {
+    final glowRadius = cellSize * 1.8;
+    canvas.drawCircle(
+      base,
+      glowRadius,
+      Paint()..shader = ui.Gradient.radial(base, glowRadius, const [Color(0x55FF9433), Color(0x00FF9433)]),
+    );
+
+    if (withBracket) {
+      final bracketW = cellSize * 0.28;
+      final bracketH = cellSize * 0.14;
+      final dx = pointRight ? bracketW * 0.5 : -bracketW * 0.5;
+      canvas.drawRect(
+        Rect.fromCenter(center: base + Offset(dx, cellSize * 0.22), width: bracketW, height: bracketH),
+        Paint()..color = const Color(0xFF6B4226),
+      );
+    }
+
+    final flameH = cellSize * 0.5;
+    final flameW = cellSize * 0.26;
+    final fc = base + Offset(0, -flameH * 0.15);
+    void flame(double wScale, double hOffsetTop, double hOffsetBot, Color color) {
+      final path = Path()
+        ..moveTo(fc.dx, fc.dy - flameH * hOffsetTop)
+        ..quadraticBezierTo(fc.dx + flameW * wScale, fc.dy, fc.dx, fc.dy + flameH * hOffsetBot)
+        ..quadraticBezierTo(fc.dx - flameW * wScale, fc.dy, fc.dx, fc.dy - flameH * hOffsetTop)
+        ..close();
+      canvas.drawPath(path, Paint()..color = color);
+    }
+
+    flame(0.5, 0.5, 0.5, const Color(0xFFE8611C)); // 外層:橘紅
+    flame(0.28, 0.32, 0.3, const Color(0xFFFFD24C)); // 內層:黃芯
+  }
+
+  // 每個物件腳下的淡橢圓陰影,錨在物件所佔格子的底部中心。
+  void _drawShadow(Canvas canvas, double cx, double footY, double cellSize, int footprintCells) {
+    final w = cellSize * 0.55 * footprintCells;
+    final h = w * 0.32;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, footY), width: w, height: h),
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
+    );
+  }
+
   ui.Image? _obstacleImage(MapObstacle o) {
     switch (o.type) {
       case "crate":
@@ -198,53 +272,32 @@ class _BoardPainter extends CustomPainter {
     canvas.drawImageRect(img, src, dest, Paint()..filterQuality = FilterQuality.none);
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cellW = size.width / GameConfig.mapWidth;
-    final cellH = size.height / GameConfig.mapHeight;
-    final boardRect = Rect.fromLTWH(0, 0, size.width, size.height);
-    // 放大後的障礙物/人物圖案可能蓋過地圖邊界外,裁切掉超出棋盤範圍的部分
-    canvas.clipRect(boardRect);
-
-    // 房間/走廊以外一律是黑色虛空(規格文件7.7節),先鋪底色再疊地板/牆
-    canvas.drawRect(boardRect, Paint()..color = const Color(0xFF000000));
-
-    final map = this.map;
-    if (map != null) {
-      _paintFloors(canvas, map, cellW, cellH);
-      for (final room in map.rooms) {
-        _paintRoomWalls(canvas, map, room, cellW, cellH);
-      }
-      _paintCorridorEdges(canvas, map, cellW, cellH);
-
-      for (final o in map.obstacles) {
-        if (!_visible(o.pos)) continue;
-        final img = _obstacleImage(o);
-        if (img != null) _drawObstacle(canvas, img, o, cellW, cellH);
-      }
-    }
-
+  void _paintFoods(Canvas canvas, double cellW, double cellH) {
     final foodImg = MapSprites.food;
-    if (foodImg != null) {
-      // 食物圖示(橘色寶石,見client/README.md「美術素材」):固定顯示在生成的棋盤格上,
-      // 不做動畫/方向變化,依格子大小等比縮放後置中畫出。
-      final foodScale = math.min(cellW, cellH) * 0.7 / math.max(foodImg.width, foodImg.height);
-      final fw = foodImg.width * foodScale;
-      final fh = foodImg.height * foodScale;
-      final foodSrc = Rect.fromLTWH(0, 0, foodImg.width.toDouble(), foodImg.height.toDouble());
-      final foodPaint = Paint()..filterQuality = FilterQuality.none;
-      for (final f in foods) {
-        if (!_visible(f)) continue;
-        final cx = (f.x + 0.5) * cellW;
-        final cy = (f.y + 0.5) * cellH;
-        canvas.drawImageRect(foodImg, foodSrc, Rect.fromLTWH(cx - fw / 2, cy - fh / 2, fw, fh), foodPaint);
-      }
+    if (foodImg == null) return;
+    // 食物圖示(橘色寶石,見client/README.md「美術素材」):固定顯示在生成的棋盤格上,
+    // 不做動畫/方向變化,依格子大小等比縮放後置中畫出。
+    final foodScale = math.min(cellW, cellH) * 0.7 / math.max(foodImg.width, foodImg.height);
+    final fw = foodImg.width * foodScale;
+    final fh = foodImg.height * foodScale;
+    final foodSrc = Rect.fromLTWH(0, 0, foodImg.width.toDouble(), foodImg.height.toDouble());
+    final foodPaint = Paint()..filterQuality = FilterQuality.none;
+    for (final f in foods) {
+      if (!_visible(f)) continue;
+      final cx = (f.x + 0.5) * cellW;
+      final cy = (f.y + 0.5) * cellH;
+      canvas.drawImageRect(foodImg, foodSrc, Rect.fromLTWH(cx - fw / 2, cy - fh / 2, fw, fh), foodPaint);
     }
+  }
 
+  void _paintSnake(Canvas canvas, double cellW, double cellH) {
     // 從蛇尾畫到蛇頭,確保蛇頭(放大後)蓋在身體上面而不是被身體蓋住
     for (var i = snake.length - 1; i >= 0; i--) {
       final p = snake[i];
       if (!_visible(p)) continue;
+      if (GameConfig.highQualityLighting) {
+        _drawShadow(canvas, p.x * cellW + cellW / 2, p.y * cellH + cellH * 0.85, math.min(cellW, cellH), 1);
+      }
       // 蛇頭永遠面向實際移動方向;蛇身每一節面向「朝前一節」的方向,做出跟隨感
       final segDir = i == 0 ? dir : DirectionDelta.fromDelta(snake[i - 1] - p);
       final sprite = i == 0 ? CharacterSprites.hero : CharacterSprites.goblin;
@@ -269,17 +322,109 @@ class _BoardPainter extends CustomPainter {
       );
       canvas.drawImageRect(sprite, src, dest, Paint()..filterQuality = FilterQuality.none);
     }
+  }
 
-    if (blind) {
-      final maskPaint = Paint()..color = Colors.black;
-      for (var x = 0; x < GameConfig.mapWidth; x++) {
-        for (var y = 0; y < GameConfig.mapHeight; y++) {
-          final p = Point(x, y);
-          if (_visible(p)) continue;
-          canvas.drawRect(Rect.fromLTWH(x * cellW, y * cellH, cellW, cellH), maskPaint);
-        }
+  void _paintBlindMask(Canvas canvas, double cellW, double cellH) {
+    final maskPaint = Paint()..color = Colors.black;
+    for (var x = 0; x < GameConfig.mapWidth; x++) {
+      for (var y = 0; y < GameConfig.mapHeight; y++) {
+        final p = Point(x, y);
+        if (_visible(p)) continue;
+        canvas.drawRect(Rect.fromLTWH(x * cellW, y * cellH, cellW, cellH), maskPaint);
       }
     }
+  }
+
+  // 規格文件步驟1-5的基礎場景繪製(地板/牆/火把/障礙物/角色/食物),獨立成一個方法讓
+  // _paintLighting可以重畫一次拿去做模糊,而不必額外用ui.Image做bitmap快取——Board本身
+  // 是CustomPainter,shouldRepaint只在snake/foods/map/blind/moveTick(跳格)變動時才觸發
+  // 重繪,所以這裡「重畫兩次」的成本只發生在每次移動tick(預設275ms一次),不是每畫面幀,
+  // 不需要額外的離散跳格快取機制。
+  void _paintScene(Canvas canvas, Rect boardRect, double cellW, double cellH) {
+    // 房間/走廊以外一律是黑色虛空(規格文件7.7節),先鋪底色再疊地板/牆
+    canvas.drawRect(boardRect, Paint()..color = const Color(0xFF000000));
+
+    final map = this.map;
+    if (map != null) {
+      _paintFloors(canvas, map, cellW, cellH);
+      for (final room in map.rooms) {
+        _paintRoomWalls(canvas, map, room, cellW, cellH);
+      }
+      _paintCorridorEdges(canvas, map, cellW, cellH);
+      if (GameConfig.highQualityLighting) _paintTorches(canvas, map, cellW, cellH);
+
+      for (final o in map.obstacles) {
+        if (!_visible(o.pos)) continue;
+        final img = _obstacleImage(o);
+        if (img == null) continue;
+        if (GameConfig.highQualityLighting) {
+          _drawShadow(canvas, o.pos.x * cellW + o.cells.length * cellW / 2, o.pos.y * cellH + cellH * 0.95,
+              math.min(cellW, cellH), o.cells.length);
+        }
+        _drawObstacle(canvas, img, o, cellW, cellH);
+      }
+    }
+
+    _paintFoods(canvas, cellW, cellH);
+    _paintSnake(canvas, cellW, cellH);
+    if (blind) _paintBlindMask(canvas, cellW, cellH);
+  }
+
+  // 即時光影效果(套用在整個棋盤,非靜態烘焙):
+  // 1. 移軸景深模糊 - 整個場景重畫一次套進blur saveLayer,再用垂直漸層(dstIn)只留清晰帶
+  //    (約22%~80%)以外的模糊部分蓋在清晰版上面
+  // 2. 暖冷雙色調 - 左上暖、右下冷的柔和對角漸層,BlendMode.overlay疊加
+  // 3. 四角暗角 - 徑向漸層,BlendMode.multiply疊加聚焦視覺中心
+  // 陰影已經在_paintScene裡跟著角色/障礙物一起畫。Bloom第一版先跳過。
+  void _paintLighting(Canvas canvas, Rect boardRect, double cellW, double cellH) {
+    const blurSigma = 6.0;
+    canvas.saveLayer(boardRect, Paint());
+    canvas.saveLayer(boardRect, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma));
+    _paintScene(canvas, boardRect, cellW, cellH);
+    canvas.restore();
+    canvas.drawRect(
+      boardRect,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, boardRect.top),
+          Offset(0, boardRect.bottom),
+          const [Colors.black, Colors.black, Colors.transparent, Colors.transparent, Colors.black, Colors.black],
+          const [0.0, 0.22, 0.22, 0.80, 0.80, 1.0],
+        )
+        ..blendMode = BlendMode.dstIn,
+    );
+    canvas.restore();
+
+    canvas.drawRect(
+      boardRect,
+      Paint()
+        ..shader = ui.Gradient.linear(boardRect.topLeft, boardRect.bottomRight, const [Color(0x33FF8A3D), Color(0x332255FF)])
+        ..blendMode = BlendMode.overlay,
+    );
+
+    canvas.drawRect(
+      boardRect,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          boardRect.center,
+          boardRect.longestSide * 0.75,
+          const [Colors.transparent, Colors.black54],
+          const [0.55, 1.0],
+        )
+        ..blendMode = BlendMode.multiply,
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cellW = size.width / GameConfig.mapWidth;
+    final cellH = size.height / GameConfig.mapHeight;
+    final boardRect = Rect.fromLTWH(0, 0, size.width, size.height);
+    // 放大後的障礙物/人物圖案可能蓋過地圖邊界外,裁切掉超出棋盤範圍的部分
+    canvas.clipRect(boardRect);
+
+    _paintScene(canvas, boardRect, cellW, cellH);
+    if (GameConfig.highQualityLighting) _paintLighting(canvas, boardRect, cellW, cellH);
   }
 
   @override
