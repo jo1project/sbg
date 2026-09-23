@@ -1,6 +1,9 @@
 // 對應 server/src/events.js 的 CONFIG,數值必須跟伺服器一致。
 class GameConfig {
-  static const serverUrl = "wss://my1st123.pp.ua/snake";
+  // build時用--dart-define=SERVER_URL=wss://...帶入正式站網址(見client/README.md「開發」一節),
+  // 不寫死在原始碼裡——這個repo是public的,寫死等於把伺服器位址攤在GitHub上。
+  // 沒帶的話(本機flutter run)預設接本機伺服器。
+  static const serverUrl = String.fromEnvironment("SERVER_URL", defaultValue: "ws://localhost:8080");
   static const mapWidth = 12;  // 直向手機比例地圖,12欄(x軸)
   static const mapHeight = 24; // 24列(y軸)
   static const dodgeWindowMs = 1000;

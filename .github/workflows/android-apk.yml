@@ -24,7 +24,9 @@ jobs:
 
       # 拆成per-ABI各自的APK(不用--split-per-abi的話單一APK會塞進所有CPU架構的
       # native庫,檔案太大),arm64-v8a涵蓋現行絕大多數Android手機。
-      - run: flutter build apk --release --split-per-abi --build-number=${{ github.run_number }}
+      - env:
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+        run: flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} --dart-define=SERVER_URL=$SERVER_URL
 
       - uses: actions/upload-artifact@v4
         with:

@@ -96,12 +96,19 @@
 flutter pub get
 flutter test      # 跑 test/collision_test.dart(碰撞判定邏輯的自我檢查)
 flutter analyze
-flutter run        # 需要實機或模擬器(iOS/Android)
+flutter run        # 需要實機或模擬器(iOS/Android),不帶--dart-define預設接本機伺服器
 ```
 
-伺服器位址寫死在 `lib/config.dart` 的 `GameConfig.serverUrl`(目前是正式站 `wss://my1st123.pp.ua/snake`),
-本機測試要接本機伺服器的話直接改這個常數(Android模擬器連本機伺服器要用 `ws://10.0.2.2:8080`),
-改完記得改回來或用git分支,別把本機網址推上TestFlight。
+伺服器位址是`lib/config.dart`裡`GameConfig.serverUrl`的build-time環境變數(`String.fromEnvironment`),
+不寫死在原始碼裡——這個repo是public的。預設值是`ws://localhost:8080`(Android模擬器連本機伺服器要用
+`ws://10.0.2.2:8080`,用`--dart-define=SERVER_URL=ws://10.0.2.2:8080`帶入)。要接正式站測試:
+
+```bash
+flutter run --dart-define=SERVER_URL=wss://your-domain.com/snake
+```
+
+CI(`.github/workflows/*.yml`)build正式站版本是靠repo secret `SERVER_URL`帶進去,見下面「發布到
+TestFlight」一節需要準備的secrets清單。
 
 ## 發布到 TestFlight(沒有Mac,用GitHub Actions建置)
 
@@ -149,8 +156,10 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 | `APPSTORE_ISSUER_ID` | 步驟4的 Issuer ID |
 | `APPSTORE_API_KEY_ID` | 步驟4的 Key ID |
 | `APPSTORE_API_PRIVATE_KEY` | 步驟4下載的 `.p8` 檔案整個內容(含 BEGIN/END PRIVATE KEY 那兩行) |
+| `SERVER_URL` | 正式站WebSocket網址,例如 `wss://your-domain.com/snake`(見「開發」一節) |
 
-Team ID 和 Provisioning Profile 名稱workflow會自動從profile檔案裡讀出來,不用另外填。
+Team ID 和 Provisioning Profile 名稱workflow會自動從profile檔案裡讀出來,不用另外填。Android APK
+build(`.github/workflows/android-apk.yml`)不用簽章secrets,但也要設`SERVER_URL`這個secret。
 
 ### 6. 觸發建置
 GitHub repo → Actions → iOS TestFlight → Run workflow。macOS runner較慢,約10幾分鐘跑完。

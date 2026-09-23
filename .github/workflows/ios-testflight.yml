@@ -83,7 +83,9 @@ jobs:
       - name: flutter build ios(不簽章,只做Dart AOT編譯+CocoaPods)
         # build-number 用 workflow run number,確保每次上傳都比上一次大,
         # 不然 altool 會因為 build number 重複而上傳失敗(而且還不會讓 job 顯示失敗)
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+        env:
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }} --dart-define=SERVER_URL=$SERVER_URL
 
       - name: 只在 Runner target 寫入手動簽章設定
         # 不能用 xcodebuild 的 command-line KEY=VALUE 覆蓋(那會對整個workspace的每個
