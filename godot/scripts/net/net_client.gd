@@ -1,6 +1,6 @@
 # 跟伺服器的 WebSocket 連線（訊息格式同 Flutter client/lib/net/socket_service.dart：一則 JSON {type, ...欄位}）。
 # - 連上後送 identify（playerId 存在 user://，第一次沒有就讓伺服器發一個；附 deviceInfo）
-# - 每秒送 ping（伺服器 3 秒沒收到任何訊息就當斷線）；自己這邊 3 秒沒收到任何訊息也當斷線
+# - 每秒送 ping（伺服器 5 秒沒收到任何訊息就當斷線）；自己這邊 5 秒沒收到任何訊息也當斷線
 # - 斷線後自動重連，用同一個 playerId 送 identify；伺服器在寬限期內會回 reconnected: true
 # - App 切到背景：主動關掉連線（不送 leave_room），讓伺服器立刻進入 10 秒寬限；回到前景自動重連
 # 伺服器網址：命令列 --sbg-server=ws://... > 環境變數 SBG_SERVER_URL > server_url。
@@ -12,7 +12,7 @@ signal connection_lost                    # 已連上的連線斷掉（或切到
 
 const SAVE_PATH := "user://sbg_net.cfg"
 const PING_INTERVAL := 1.0
-const SILENCE_TIMEOUT := 3.0   # 這麼久沒收到任何訊息（正常每秒有 pong）就當斷線
+const SILENCE_TIMEOUT := 5.0   # 這麼久沒收到任何訊息（正常每秒有 pong）就當斷線，同伺服器 CONFIG.HEARTBEAT_TIMEOUT_MS
 const RETRY_INTERVAL := 1.0
 
 @export var server_url := "ws://localhost:8080"
