@@ -3,7 +3,7 @@
 extends AnimatedSprite3D
 
 const CharacterSprites := preload("res://scripts/character_sprites.gd")
-const PX := 1.0 / 16.0
+const PixelScale := preload("res://scripts/pixel_scale.gd")
 
 var rows: Array = CharacterSprites.ROWS_8DIR
 var base_speed := 1.0         # 正常移動速度（格/秒），此速度下 speed_scale = 1
@@ -11,13 +11,14 @@ var dir := 0                  # 目前面向（0 = 朝鏡頭，順時針 +1，�
 var _moving := false
 
 # 精靈中心在 32px 幀的第 16 列，腳在第 24 列 => 整張往上抬 8px，腳踩在地板 y=0
-const LIFT := (CharacterSprites.FEET_ROW - CharacterSprites.FRAME / 2.0) * PX
+var _lift := 0.0
 
 func setup(frames: SpriteFrames, sheet_rows: Array, speed: float) -> void:
 	sprite_frames = frames
 	rows = sheet_rows
 	base_speed = speed
-	pixel_size = PX
+	pixel_size = PixelScale.size()
+	_lift = (CharacterSprites.FEET_ROW - CharacterSprites.FRAME / 2.0) * pixel_size
 	billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
@@ -27,7 +28,7 @@ func setup(frames: SpriteFrames, sheet_rows: Array, speed: float) -> void:
 
 # 直接放到某位置（不算速度、不改方向），用在初始擺放
 func place(ground: Vector3, facing: int) -> void:
-	position = Vector3(ground.x, LIFT, ground.z)
+	position = Vector3(ground.x, _lift, ground.z)
 	dir = facing
 	_apply(false)
 
@@ -35,7 +36,7 @@ func place(ground: Vector3, facing: int) -> void:
 func move_to(ground: Vector3, delta: float, cam_yaw: float) -> void:
 	var v := ground - position
 	v.y = 0
-	position = Vector3(ground.x, LIFT, ground.z)
+	position = Vector3(ground.x, _lift, ground.z)
 	var speed := v.length() / maxf(delta, 1e-5)
 	var moving := speed > base_speed * 0.05
 	if moving:

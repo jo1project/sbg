@@ -9,8 +9,8 @@
 background_mode = 1
 background_color = Color(0.03, 0.03, 0.06, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.35, 0.4, 0.6, 1)
-ambient_light_energy = 0.6
+ambient_light_color = Color(0.2901961, 0.3647059, 0.6117647, 1)
+ambient_light_energy = 0.35
 tonemap_mode = 3
 glow_enabled = true
 glow_intensity = 0.8
@@ -19,7 +19,7 @@ glow_bloom = 0.1
 [sub_resource type="CameraAttributesPractical" id="Attr"]
 dof_blur_far_enabled = true
 dof_blur_far_distance = 18.0
-dof_blur_far_transition = 14.0
+dof_blur_far_transition = 4.0
 dof_blur_amount = 0.15
 
 [sub_resource type="ShaderMaterial" id="VignetteMat"]
@@ -30,6 +30,13 @@ shader = ExtResource("4")
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env")
 camera_attributes = SubResource("Attr")
+
+[node name="Moonlight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.5, -0.6634139, 0.5566704, 0, 0.6427876, 0.7660444, -0.8660254, -0.3830222, 0.3213938, 0, 10, 0)
+light_color = Color(0.55, 0.65, 1, 1)
+light_energy = 0.12
+shadow_enabled = true
+directional_shadow_max_distance = 30.0
 
 [node name="ChunkManager" type="Node3D" parent="." node_paths=PackedStringArray("target")]
 script = ExtResource("1")

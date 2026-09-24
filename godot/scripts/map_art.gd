@@ -5,7 +5,7 @@
 extends RefCounted
 
 const DIR := "res://assets/dungeon/"
-const PX := 1.0 / 16.0
+const PixelScale := preload("res://scripts/pixel_scale.gd")
 const IDLE_FPS := 1000.0 / 325.0   # Flutter 怪物待機動畫跟移動 tick 同步（325ms/格），這裡用同樣節奏
 const FLAME_FPS := 8.0
 
@@ -22,6 +22,7 @@ const TORCH_FLICKER := preload("res://scripts/torch_flicker.gd")
 const MapLoaderScript := preload("res://scripts/map_loader.gd")
 const COLUMN_HEIGHT := 2.0          # 柱子總高，柱頂火把放這個高度
 
+var px := PixelScale.size()  # = 1 / 地磚像素寬度（16px => 1/16）
 var _floor_meshes := {}     # variant(1~8) -> Mesh
 var _crate_mesh: Mesh
 var _column_parts: Array    # [[Mesh, 中心高度], ...]
@@ -38,16 +39,16 @@ func _init() -> void:
 
 	var crate := _img("crate.png")
 	var crate_side := _mat(_crop(crate, CROP_CRATE_SIDE))
-	_crate_mesh = box_mesh(Vector3(14, 11, 14) * PX, crate_side, _mat(_crop(crate, CROP_CRATE_TOP)))
+	_crate_mesh = box_mesh(Vector3(14, 11, 14) * px, crate_side, _mat(_crop(crate, CROP_CRATE_TOP)))
 
 	var col := _img("column.png")
 	var shaft := _mat(_crop(col, CROP_COLUMN_SHAFT))
 	var cap := _mat(_crop(col, CROP_COLUMN_CAP))
 	# 底座 0.25 + 柱身 1.4375 + 柱頂 0.3125 = 2.0；柱身比素材的 18px 稍微拉長到 23px
 	_column_parts = [
-		[box_mesh(Vector3(14, 4, 14) * PX, _mat(_crop(col, CROP_COLUMN_BASE)), shaft), 2 * PX],
-		[box_mesh(Vector3(12, 23, 12) * PX, shaft, shaft), (4 + 11.5) * PX],
-		[box_mesh(Vector3(14, 5, 14) * PX, cap, _mat(_crop(col, CROP_COLUMN_TOP))), (27 + 2.5) * PX],
+		[box_mesh(Vector3(14, 4, 14) * px, _mat(_crop(col, CROP_COLUMN_BASE)), shaft), 2 * px],
+		[box_mesh(Vector3(12, 23, 12) * px, shaft, shaft), (4 + 11.5) * px],
+		[box_mesh(Vector3(14, 5, 14) * px, cap, _mat(_crop(col, CROP_COLUMN_TOP))), (27 + 2.5) * px],
 	]
 
 	_flame_frames = SpriteFrames.new()
@@ -57,13 +58,13 @@ func _init() -> void:
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color(0.42, 0.26, 0.15)   # Flutter 火把壁架的 0xFF6B4226
 	var bm := BoxMesh.new()
-	bm.size = Vector3(2, 28, 2) * PX
+	bm.size = Vector3(2, 28, 2) * px
 	bm.material = wood
 	_post_mesh = bm
 	var iron := StandardMaterial3D.new()
 	iron.albedo_color = Color(0.13, 0.12, 0.12)
 	var cm := BoxMesh.new()
-	cm.size = Vector3(4, 2, 4) * PX
+	cm.size = Vector3(4, 2, 4) * px
 	cm.material = iron
 	_cup_mesh = cm
 
@@ -124,7 +125,7 @@ func make_floor(c: Vector2i) -> MeshInstance3D:
 func make_crate() -> Node3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = _crate_mesh
-	mi.position.y = 11 * PX / 2.0
+	mi.position.y = 11 * px / 2.0
 	return _wrap(mi)
 
 func make_column() -> Node3D:
@@ -151,13 +152,13 @@ func make_monster(species: String) -> Node3D:
 		return _wrap(mi)
 	var s := AnimatedSprite3D.new()
 	s.sprite_frames = frames
-	s.pixel_size = PX
+	s.pixel_size = px
 	s.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	s.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	s.shaded = true
 	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	s.position.y = frames.get_frame_texture("default", 0).get_height() * PX / 2.0
+	s.position.y = frames.get_frame_texture("default", 0).get_height() * px / 2.0
 	s.autoplay = "default"
 	return _wrap(s)
 
@@ -185,20 +186,20 @@ func make_torch(with_post: bool, seed_value: int) -> Node3D:
 		root.add_child(post)
 	var cup := MeshInstance3D.new()
 	cup.mesh = _cup_mesh
-	cup.position.y = top + PX
+	cup.position.y = top + px
 	cup.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(cup)
 
 	var flame := AnimatedSprite3D.new()
 	flame.sprite_frames = _flame_frames
-	flame.pixel_size = PX * 0.75
+	flame.pixel_size = px
 	flame.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	flame.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	flame.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 	flame.shaded = false
 	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var fh := _flame_frames.get_frame_texture("default", 0).get_height() * flame.pixel_size
-	flame.position.y = top + 2 * PX + fh / 2.0
+	flame.position.y = top + 2 * px + fh / 2.0
 	flame.autoplay = "default"
 	root.add_child(flame)
 
@@ -207,7 +208,7 @@ func make_torch(with_post: bool, seed_value: int) -> Node3D:
 	light.light_energy = 2.6
 	light.omni_range = 7.0
 	light.shadow_enabled = true
-	light.position.y = top + 2 * PX + fh * 0.6
+	light.position.y = top + 2 * px + fh * 0.6
 	light.set_script(TORCH_FLICKER)
 	light.set("noise_seed", seed_value)
 	root.add_child(light)
