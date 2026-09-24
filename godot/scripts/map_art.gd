@@ -12,6 +12,8 @@ const FLAME_FPS := 8.0
 # 切圖區塊（素材像素座標，Rect2i(x, y, w, h)）
 const CROP_CRATE_TOP := Rect2i(1, 3, 14, 9)     # 箱蓋（俯視那塊直條木板）
 const CROP_CRATE_SIDE := Rect2i(1, 12, 14, 11)  # 箱子正面（橘色條 + 兩個把手孔）
+const CROP_CHEST_TOP := Rect2i(1, 2, 14, 7)     # 寶箱蓋（橘色木板 + 金屬條）
+const CROP_CHEST_SIDE := Rect2i(1, 8, 14, 8)    # 寶箱正面（金色鎖扣 + 下半箱體）
 const CROP_COLUMN_TOP := Rect2i(1, 1, 14, 4)    # 柱頂淺色石面
 const CROP_COLUMN_CAP := Rect2i(1, 3, 14, 5)    # 柱頂外緣側面
 const CROP_COLUMN_SHAFT := Rect2i(2, 8, 12, 18) # 柱身
@@ -25,6 +27,7 @@ const COLUMN_HEIGHT := 2.0          # 柱子總高，柱頂火把放這個高度
 var px := PixelScale.size()  # = 1 / 地磚像素寬度（16px => 1/16）
 var _floor_meshes := {}     # variant(1~8) -> Mesh
 var _crate_mesh: Mesh
+var _chest_mesh: Mesh
 var _column_parts: Array    # [[Mesh, 中心高度], ...]
 var _monster_frames := {}   # species -> SpriteFrames（null = 素材缺）
 var _flame_frames: SpriteFrames
@@ -40,6 +43,9 @@ func _init() -> void:
 	var crate := _img("crate.png")
 	var crate_side := _mat(_crop(crate, CROP_CRATE_SIDE))
 	_crate_mesh = box_mesh(Vector3(14, 11, 14) * px, crate_side, _mat(_crop(crate, CROP_CRATE_TOP)))
+
+	var chest := _img("chest_full_open_anim_f0.png")   # 同 Flutter MapSprites.chest
+	_chest_mesh = box_mesh(Vector3(14, 8, 12) * px, _mat(_crop(chest, CROP_CHEST_SIDE)), _mat(_crop(chest, CROP_CHEST_TOP)))
 
 	var col := _img("column.png")
 	var shaft := _mat(_crop(col, CROP_COLUMN_SHAFT))
@@ -126,6 +132,12 @@ func make_crate() -> Node3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = _crate_mesh
 	mi.position.y = 11 * px / 2.0
+	return _wrap(mi)
+
+func make_chest() -> Node3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _chest_mesh
+	mi.position.y = 8 * px / 2.0
 	return _wrap(mi)
 
 func make_column() -> Node3D:

@@ -1,6 +1,7 @@
-# 玩家的蛇（角色隊伍）。本地單機模式：邏輯照 Flutter client/lib/game/game_controller.dart 的 _tick()
-# 與 collision.dart：每 step_time 秒前進一格；撞牆/虛空、撞自己、撞障礙物就死
-# （目前只 print 並重新開始；接伺服器後改成送 death_report 等伺服器判定）。吃寶石不會變長（Flutter 也是）。
+# 玩家的蛇（角色隊伍）。邏輯照 Flutter client/lib/game/game_controller.dart 的 _tick() 與 collision.dart：
+# 每 step_time 秒前進一格；撞牆/虛空、撞自己、撞障礙物就發出 died 並停下（本地模式由 game_session 重新開始，
+# 線上模式送 death_report 等伺服器判定）。吃寶石不會變長（Flutter 也是）。
+# 開局（3-2-1 倒數）、凍結（斷線寬限期間）由 game_session.gd 控制：reset_to() → start()、set_frozen()。
 #
 # 輸入：轉向輸入先排進佇列，每個格子步進取一個套用（一格內快速按「上再右」會分兩步依序轉，不會只留最後一個）。
 #   跟前一個方向（佇列最後一個，佇列空就是目前方向）相反或相同的輸入直接忽略（不能 180 度迴轉）。
@@ -15,7 +16,7 @@ const CharacterSprites := preload("res://scripts/character_sprites.gd")
 const SnakeCharacter := preload("res://scripts/snake_character.gd")
 
 signal head_arrived(cell: Vector2i)   # 蛇頭進入新的一格（吃食物判定用）
-signal died(cause: String)            # "wall" | "self" | "obstacle"，同 Flutter DeathCheck.cause
+signal died(cause: String, head: Vector2i, body: Array)   # cause 同 Flutter DeathCheck.cause；head = 撞上的格子；body = 移動前的蛇身（含頭）
 signal turned(dir: Vector2i)          # 格子邏輯真正換方向的那一步（除錯/量測用）
 
 const QUEUE_MAX := 3               # 最多排幾個轉向，避免按太多累積成很久以前的操作
@@ -32,7 +33,8 @@ var map: MapLoader
 var spawn_cell := Vector2i.ZERO
 var dir := Vector2i.RIGHT          # 目前方向（最近一步實際走的），Flutter 開局也是往右
 var _queue: Array[Vector2i] = []   # 還沒套用的轉向
-var _started := false              # 開局/重生後等第一次方向輸入才開始走
+var _started := false              # start() 之後才會走（開局倒數期間可以先輸入方向，第一步就套用，同 Flutter）
+var frozen := false                # 斷線寬限期間凍結：邏輯與畫面都停在原地
 var _body: Array[Vector2i] = []    # 邏輯位置，[0] = 蛇頭
 var _prev: Array[Vector2i] = []    # 上一步時每一節的位置（插值起點）
 var _t := 0.0                      # 這一步的進度 0~1
@@ -61,7 +63,21 @@ func _ready() -> void:
 		_chars.append(ch)
 	_reset()
 
-# 開局/重生：蛇頭在 spawn，身體往左排開、面向右（同 Flutter _startMatch）
+# 開局/重生：蛇頭在 cell，身體往左排開、面向右（同 Flutter _startMatch），停著等 start()
+func reset_to(cell: Vector2i) -> void:
+	spawn_cell = cell
+	_reset()
+
+func start() -> void:
+	_started = true
+	_t = 0.0
+
+func set_frozen(on: bool) -> void:
+	frozen = on
+
+func is_moving() -> bool:
+	return _started
+
 func _reset() -> void:
 	dir = Vector2i.RIGHT
 	_queue.clear()
@@ -84,16 +100,16 @@ func set_direction(d: Vector2i) -> void:
 	var last: Vector2i = _queue.back() if not _queue.is_empty() else dir
 	if d == -last:
 		return
-	if not _started:
-		# 第一次輸入（含跟目前面向相同的方向）：馬上走第一步，不用等一整個 step
-		_started = true
-		_t = 1.0
+	if frozen:
+		return   # 凍結中不接受轉向（同 Flutter 暫停時 setDirection 直接 return）
 	if d == last or _queue.size() >= QUEUE_MAX:
 		return
 	_queue.append(d)
 	_dbg("收到輸入 %s（佇列 %s）" % [d, _queue])
 
 func _process(delta: float) -> void:
+	if frozen:
+		return
 	if _started:
 		_t += delta / step_time
 		while _t >= 1.0:
@@ -120,8 +136,9 @@ func _tick() -> bool:
 	var cause := _death_cause(new_head)
 	if cause != "":
 		print("死亡: %s @ %s" % [cause, new_head])
-		died.emit(cause)
-		_reset()
+		_started = false
+		_t = 1.0   # 畫面停在撞上前的那一格
+		died.emit(cause, new_head, _body.duplicate())
 		return false
 	if nd != dir:
 		turned.emit(nd)

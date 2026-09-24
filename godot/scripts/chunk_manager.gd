@@ -10,7 +10,9 @@ const EDGE_TORCHES_PER_SIDE := 3   # 同 Flutter：每個房間左右邊緣各�
 
 @export var target: Node3D            # 追蹤的對象（假蛇頭）；chunk 判斷以它為中心
 @export var load_radius := 2          # 前後左右各載入幾個 chunk (2 => 5x5)
-@export_file("*.json") var map_path := "res://assets/maps/map_03.json"
+@export_file("*.json") var map_path := "res://assets/maps/map_03.json"   # 本地模式用；線上模式由伺服器 obstacle_layout 換掉
+
+signal map_changed
 
 var map: MapLoader
 var art: MapArt
@@ -20,14 +22,30 @@ var _torches := {}                    # chunk 座標 -> Array[[世界座標 Vect
 
 func _ready() -> void:
 	art = MapArt.new()
-	map = MapLoader.new()
-	if not map.load_file(map_path):
-		return
+	var m := MapLoader.new()
+	if m.load_file(map_path):
+		_use_map(m)
+
+# 換成伺服器送來的地圖（obstacle_layout 的 map，格式同 server/maps/*.json）
+func load_map_data(data: Dictionary) -> void:
+	var m := MapLoader.new()
+	m._parse(data)
+	_use_map(m)
+
+func _use_map(m: MapLoader) -> void:
+	map = m
+	for k in _chunks:
+		remove_child(_chunks[k])   # 先拿掉，新 chunk 才能用同樣的名字
+		_chunks[k].queue_free()
+	_chunks.clear()
+	_torches.clear()
+	_center = Vector2i(999999, 999999)   # 下一幀重建周圍的 chunk
 	_plan_torches()
 	if target and target.has_method("set_map"):
 		target.set_map(map)
 	if target and target.has_method("set_start"):
 		target.set_start(MapLoader.cell_center(map.spawn))
+	map_changed.emit()
 
 # ---- chunk 載入判斷邏輯都在這裡 ----
 func _process(_delta: float) -> void:
@@ -113,7 +131,7 @@ func _even_spaced(items: Array, count: int) -> Array:
 		out.append(items[roundi(i * (items.size() - 1) / float(count - 1))])
 	return out
 
-# 節點命名：Monster_<species>_<x>_<y> / Column_<x>_<y> / Crate_<x>_<y>（x,y 為 JSON 格座標）
+# 節點命名：Monster_<species>_<x>_<y> / Column_<x>_<y> / Crate_<x>_<y> / Chest_<x>_<y>（x,y 為 JSON 格座標）
 # metadata：obstacle_type, grid_x, grid_y；monster 另有 species, size
 # size=big 的怪物對照 Flutter MapObstacle.cells：佔 (x,y) 與 (x+1,y) 兩格，立繪置中在兩格中間
 func _add_map_obstacle(parent: Node3D, o: Dictionary, x: int, z: int) -> void:
@@ -138,6 +156,9 @@ func _add_map_obstacle(parent: Node3D, o: Dictionary, x: int, z: int) -> void:
 		"crate":
 			node = art.make_crate()
 			node.name = "Crate_%d_%d" % [gx, gy]
+		"chest":
+			node = art.make_chest()
+			node.name = "Chest_%d_%d" % [gx, gy]
 		_:
 			push_warning("MapLoader: 未知 obstacle type '%s' @ (%d,%d)，先用 crate 代替" % [type, gx, gy])
 			node = art.make_crate()

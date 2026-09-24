@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/snake_train.gd" id="2"]
@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scripts/food_manager.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="6"]
 [ext_resource type="Script" path="res://scripts/debug/debug_panel.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/ui/status_overlay.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/game_session.gd" id="9"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -74,3 +76,14 @@ snake = NodePath("../Snake")
 
 [node name="DebugPanel" type="CanvasLayer" parent="."]
 script = ExtResource("7")
+
+[node name="StatusOverlay" type="CanvasLayer" parent="." node_paths=PackedStringArray("touch_controls")]
+script = ExtResource("8")
+touch_controls = NodePath("../TouchControls")
+
+[node name="Session" type="Node" parent="." node_paths=PackedStringArray("snake", "chunk_manager", "food_manager", "overlay")]
+script = ExtResource("9")
+snake = NodePath("../Snake")
+chunk_manager = NodePath("../ChunkManager")
+food_manager = NodePath("../FoodManager")
+overlay = NodePath("../StatusOverlay")

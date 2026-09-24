@@ -1,6 +1,6 @@
 # 場上的寶石：接食物來源（food_source.gd 介面）的 food_spawned 產生寶石；
 # 蛇頭每走進一格就比對，吃到了（同 Flutter game_controller _tick() 的判定）就播閃光、移除，並回報來源。
-# 現在用本地產生器；接伺服器時把 _make_source() 換成 ServerFoodSource。
+# 食物來源由 game_session.gd 決定：本地模式 use_local_source()、線上模式 use_source(ServerFoodSource)。
 extends Node3D
 
 const LocalFoodSource := preload("res://scripts/local_food_source.gd")
@@ -13,19 +13,30 @@ var source: Node                     # food_source.gd
 var _gems := {}                      # foodId -> [Gem 節點, Vector2i]
 
 func _ready() -> void:
-	source = _make_source()
+	snake.head_arrived.connect(_on_head_arrived)
+
+# 換食物來源：清掉場上所有寶石，接上新來源並 start()
+func use_source(s: Node) -> void:
+	clear()
+	if source:
+		source.queue_free()
+	source = s
 	add_child(source)
 	source.food_spawned.connect(_on_food_spawned)
 	source.food_removed.connect(_on_food_removed)
-	snake.head_arrived.connect(_on_head_arrived)
 	source.start()
 
-func _make_source() -> Node:
+func use_local_source() -> void:
 	var s = LocalFoodSource.new()
 	s.name = "LocalFoodSource"
 	s.map = chunk_manager.map
 	s.occupied_by_snake = snake.occupied_cells
-	return s
+	use_source(s)
+
+func clear() -> void:
+	for id in _gems:
+		_gems[id][0].queue_free()
+	_gems.clear()
 
 func _on_food_spawned(food_id: String, cell: Vector2i) -> void:
 	var g := Node3D.new()
@@ -42,6 +53,8 @@ func _on_food_removed(food_id: String) -> void:
 		_gems.erase(food_id)
 
 func _on_head_arrived(cell: Vector2i) -> void:
+	if source == null:
+		return
 	for id in _gems.keys():
 		if _gems[id][1] == cell:
 			_gems[id][0].burst_and_free()
