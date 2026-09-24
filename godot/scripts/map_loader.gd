@@ -2,14 +2,14 @@
 # 座標對應：地圖格 (x, y) => 世界 [x, x+1) x [y, y+1)，也就是 JSON 的 y 對應世界的 z 軸，地圖原點在世界原點。
 extends RefCounted
 
-enum Kind { FLOOR, WALL }
-
 var map_id := ""
 var cols := 0
 var rows := 0
 var spawn := Vector2i.ZERO
-var cells := {}        # Vector2i -> Kind；只有 rooms/corridors 與其外框牆算「已知內容」
-var obstacles := {}    # Vector2i -> Dictionary（JSON 原始 obstacle 物件）
+var zones: Array[Rect2i] = []   # rooms + corridors（Rect2i 的 end 為開區間，已把 JSON 的含端點 x1/y1 +1）
+var room_count := 0             # zones 前 room_count 個是 rooms，後面是 corridors
+var floor_cells := {}           # Vector2i -> true；rooms/corridors 範圍內的格子，範圍外什麼都不生成
+var obstacles := {}             # Vector2i -> Dictionary（JSON 原始 obstacle 物件）
 
 # 用法：var m := MapLoader.new(); if m.load_file(path): ...
 func load_file(path: String) -> bool:
@@ -34,36 +34,25 @@ func _parse(d: Dictionary) -> void:
 	# rooms 與 corridors 同樣處理：矩形內（x1/y1 含端點）都是地板
 	var rects: Array = []
 	rects.append_array(d.get("rooms", []))
+	room_count = rects.size()
 	rects.append_array(d.get("corridors", []))
 	for r in rects:
-		for x in range(int(r.x0), int(r.x1) + 1):
-			for y in range(int(r.y0), int(r.y1) + 1):
-				cells[Vector2i(x, y)] = Kind.FLOOR
-	# 每個矩形往外一圈是牆；已經是地板的格子（別的房間/走廊）不蓋牆，走廊就能打通牆
-	for r in rects:
-		for x in range(int(r.x0) - 1, int(r.x1) + 2):
-			for y in range(int(r.y0) - 1, int(r.y1) + 2):
-				var c := Vector2i(x, y)
-				if not cells.has(c):
-					cells[c] = Kind.WALL
+		var z := Rect2i(int(r.x0), int(r.y0), int(r.x1) - int(r.x0) + 1, int(r.y1) - int(r.y0) + 1)
+		zones.append(z)
+		for x in range(z.position.x, z.end.x):
+			for y in range(z.position.y, z.end.y):
+				floor_cells[Vector2i(x, y)] = true
 
 	for o in d.get("obstacles", []):
 		obstacles[Vector2i(int(o.x), int(o.y))] = o
 
-# 這格是否由地圖資料決定（true => 不走隨機生成）
-func is_known(c: Vector2i) -> bool:
-	return cells.has(c)
+func is_floor(c: Vector2i) -> bool:
+	return floor_cells.has(c)
 
-func kind_at(c: Vector2i) -> Kind:
-	return cells[c]
-
-# 與已知內容的切比雪夫距離是否 <= r（用來在交界留一圈乾淨地板）
-func is_near(c: Vector2i, r: int) -> bool:
-	for dx in range(-r, r + 1):
-		for dy in range(-r, r + 1):
-			if cells.has(c + Vector2i(dx, dy)):
-				return true
-	return false
+# 對應 Flutter MapSprites.floorFor()：同一格固定選同一張地磚，88% floor_1、12% 平均分給 floor_2~8。回傳 1~8。
+static func floor_variant(c: Vector2i) -> int:
+	var h := posmod(c.x * 928371 + c.y * 51329, 100)
+	return 1 if h < 88 else 2 + (h - 88) % 7
 
 static func cell_center(c: Vector2i, y := 0.0) -> Vector3:
 	return Vector3(c.x + 0.5, y, c.y + 0.5)
