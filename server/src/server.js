@@ -16,6 +16,19 @@ const onlinePlayers = new Map();
 // ws -> playerId,方便斷線時反查
 const wsToPlayerId = new Map();
 
+// 開發用除錯指令(見 debug.js):必須同時 SBG_DEBUG_COMMANDS=1 且 NODE_ENV 不是 production 才會載入,
+// 沒啟用時 debug.js 完全不會被 import,debug_* 訊息一律當未知訊息忽略。
+let debug = null;
+if (process.env.SBG_DEBUG_COMMANDS === "1") {
+  if (process.env.NODE_ENV === "production") {
+    console.error("[debug] NODE_ENV=production,拒絕啟用除錯指令(SBG_DEBUG_COMMANDS 被忽略)");
+  } else {
+    const { createDebugHandler } = await import("./debug.js");
+    debug = createDebugHandler({ onlinePlayers, matchmaker });
+    console.warn("[debug] ⚠ 開發用除錯指令已啟用(SBG_DEBUG_COMMANDS=1),正式環境不可使用");
+  }
+}
+
 function getRoom(player) {
   if (!player.roomId) return null;
   return matchmaker.rooms.get(player.roomId);
@@ -51,6 +64,9 @@ wss.on("connection", (ws) => {
     } catch {
       return; // 忽略無法解析的訊息
     }
+
+    // 除錯連線(除錯面板)不需要 identify
+    if (debug && debug.handle(msg, ws)) return;
 
     // ---- 尚未 identify 前,只接受 identify / restore_account 訊息 ----
     if (!player) {

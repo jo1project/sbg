@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/snake_train.gd" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Shader" path="res://assets/vignette.gdshader" id="4"]
 [ext_resource type="Script" path="res://scripts/food_manager.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/ui/touch_controls.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/debug/debug_panel.gd" id="7"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -70,3 +71,6 @@ mouse_filter = 2
 [node name="TouchControls" type="CanvasLayer" parent="." node_paths=PackedStringArray("snake")]
 script = ExtResource("6")
 snake = NodePath("../Snake")
+
+[node name="DebugPanel" type="CanvasLayer" parent="."]
+script = ExtResource("7")

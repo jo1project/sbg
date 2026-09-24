@@ -197,6 +197,11 @@ export class Room {
     let rolledEffect = null;
     if (attackType === "random") {
       rolledEffect = EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
+      // 開發用除錯指令 debug_force_next_effect(見 debug.js,正式環境不會被設定)
+      if (this.debugNextEffect) {
+        rolledEffect = this.debugNextEffect;
+        this.debugNextEffect = null;
+      }
     }
 
     attacker.pendingAttack = {
@@ -228,7 +233,10 @@ export class Room {
     // 若目標是NPC,由伺服器直接依中等難度閃躲成功率模擬決策,
     // 不需等待(NPC沒有真人的0.3秒反應延遲,但仍受機率限制)
     if (target.isNpc) {
-      const dodged = Math.random() < CONFIG.NPC_DODGE_SUCCESS_RATE;
+      let dodged = Math.random() < CONFIG.NPC_DODGE_SUCCESS_RATE;
+      // 開發用除錯指令 debug_npc_dodge(見 debug.js,正式環境不會被設定)
+      if (target.debugDodgeMode === "always") dodged = true;
+      if (target.debugDodgeMode === "never") dodged = false;
       setTimeout(() => {
         this.resolveAttack(attacker, target, attackId, { dodged });
       }, 100 + Math.random() * 150); // 模擬反應延遲,避免瞬間判定顯得不自然

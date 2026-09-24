@@ -68,17 +68,45 @@ npm start
 PORT=3000 npm start
 ```
 
+## 開發用除錯指令(只限開發環境)
+
+手動測試規格用(情境清單見 `godot/TEST_SCENARIOS.md`,Godot debug build 裡有除錯面板可以送這些指令)。
+**預設關閉**,必須同時符合兩個條件才會啟用:
+
+1. 環境變數 `SBG_DEBUG_COMMANDS=1`
+2. `NODE_ENV` 不是 `production`(正式環境即使誤設 `SBG_DEBUG_COMMANDS=1`,伺服器也會拒絕並印出錯誤)
+
+沒啟用時 `src/debug.js` 根本不會被載入,`debug_*` 訊息一律當成未知訊息忽略。啟用時啟動訊息會印出警告。
+
+```bash
+SBG_DEBUG_COMMANDS=1 npm start
+```
+
+除錯連線不需要 `identify`,用 `playerId` 指定要操作的玩家(或他所在的房間/NPC 對手)。
+回應是 `{ type: "debug_ack", command, detail }` 或 `{ type: "debug_error", command, message }`。
+
+| 指令 | 欄位 | 作用 |
+|---|---|---|
+| `debug_list` | — | 列出線上玩家、房間、能量、效果、閃躲計數、NPC 設定 |
+| `debug_force_next_effect` | `playerId`, `effect`: `speedup`/`pause`/`blind`/`null` | 該玩家房間的下一次隨機效果攻擊固定是這個效果(不論誰發動,用一次就清掉;`null` 取消) |
+| `debug_set_energy` | `playerId`, `energy` | 直接設定權威能量(真人或 NPC 都可),照常廣播 `energy_update` |
+| `debug_npc_attack` | `playerId`, `attackType`: `direct`/`random`, `delayMs`, `energy`(選填) | 該玩家的 NPC 對手在 `delayMs` 後發動攻擊;有給 `energy` 就先把 NPC 能量設成這個值。被狀態鎖擋下會回 `debug_error` 附原因 |
+| `debug_npc_dodge` | `playerId`, `mode`: `always`/`never`/`default` | NPC 被攻擊時永遠閃避/永遠不閃避/照規格 30% |
+| `debug_npc_auto_attack` | `playerId`, `enabled` | 關掉/打開 NPC 自己的自動攻擊,避免干擾手動測試的時序 |
+
 ## 部署到小型VPS的建議步驟
 
 1. VPS 安裝 Node.js 20+(`nvm install 20` 或發行版套件管理員)
 2. 把整個 `snake-server/` 資料夾上傳到VPS(或用git clone)
 3. `npm install --production`
-4. 用 `pm2` 或 `systemd` 讓程式常駐並自動重啟,並把 `HOST` 設成只接受本機連線:
+4. 用 `pm2` 或 `systemd` 讓程式常駐並自動重啟,並把 `HOST` 設成只接受本機連線、`NODE_ENV` 設成
+   `production`(除錯指令的第二道保險:就算環境裡誤設了 `SBG_DEBUG_COMMANDS=1` 也不會啟用):
    ```bash
    npm install -g pm2
-   HOST=127.0.0.1 pm2 start src/server.js --name snake-server
+   NODE_ENV=production HOST=127.0.0.1 pm2 start src/server.js --name snake-server
    pm2 save
    ```
+   啟動後確認 log 裡**沒有**「除錯指令已啟用」這行。
 5. 前面加一層 Nginx 終止 `wss://` 再轉給本機的 `ws://127.0.0.1:8080`,並用 Let's Encrypt 申請憑證
    (手機App連線正式環境建議一律走加密連線)。設定範例、certbot指令見 `deploy/nginx.conf.example`
 
@@ -93,6 +121,7 @@ snake-server/
     ├── server.js       # 進入點,WebSocket連線與訊息路由
     ├── events.js        # 事件類型常數 + 數值設定(CONFIG)
     ├── db.js             # SQLite持久化(玩家ID/還原碼)
+    ├── debug.js          # 開發用除錯指令(只在 SBG_DEBUG_COMMANDS=1 且非 production 時載入)
     ├── player.js         # 玩家狀態(能量/效果/RTT/邀請狀態)
     ├── room.js           # 房間邏輯(食物/攻擊判定核心)
     ├── matchmaking.js    # 配對佇列 + 好友邀請流程 + NPC填充

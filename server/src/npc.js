@@ -30,6 +30,7 @@ export class NpcPlayer extends Player {
     // 能量達到隨機門檻(5~10)後才會出手,而非固定滿量,模擬中等難度的出手時機
     this.attackTimer = setInterval(() => {
       if (this.isPaused() || this.pendingAttack) return;
+      if (this.debugAutoAttackOff) return; // 開發用除錯指令 debug_npc_auto_attack(見 debug.js)
       if (this.energy < this.attackEnergyThreshold) return;
       const attackType = Math.random() < 0.5 ? "direct" : "random";
       room.handleAttackRequest(this.id, attackType, Date.now());
