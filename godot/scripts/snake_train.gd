@@ -11,6 +11,8 @@ extends Node3D
 const CharacterSprites := preload("res://scripts/character_sprites.gd")
 const SnakeCharacter := preload("res://scripts/snake_character.gd")
 
+signal head_arrived(cell: Vector2i)   # 蛇頭每走完一格（邏輯位置更新）時發出，吃食物判定用
+
 @export var segment_count := 5                 # 含蛇頭
 @export var step_time := 0.325                 # 每格秒數（同 Flutter 325ms/格）
 @export var camera: Camera3D                   # 方向以它的 Y 軸旋轉為準
@@ -63,6 +65,17 @@ func _ready() -> void:
 		_chars.append(ch)
 	position = _eval(_head_u())
 
+# 目前每一節佔的格子（邏輯位置，[0] = 蛇頭）
+func occupied_cells() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for i in segment_count:
+		out.append(_cells[_cells.size() - 3 - i])
+	return out
+
+# 測試路線經過的所有格子（給本地食物產生器測試用）
+func route_cells() -> Array[Vector2i]:
+	return _loop.duplicate()
+
 func _loop_cell(k: int) -> Vector2i:
 	return _loop[posmod(k - 1, _loop.size())]
 
@@ -82,6 +95,7 @@ func _process(delta: float) -> void:
 			_cells.append(_next_cell())
 			if _cells.size() > segment_count + 4:
 				_cells.pop_front()
+			head_arrived.emit(_cells[-3])
 			# 蛇頭剛抵達的格子是 _loop_cell(_next_k - 3)；回到 spawn 時停一下
 			if pause_per_loop > 0.0 and posmod(_next_k - 3, _loop.size()) == 0:
 				_pause = pause_per_loop
