@@ -132,8 +132,8 @@ export class Room {
     return pausedMs;
   }
 
-  // 斷線當下閃避視窗還開著的攻擊,恢復時怎麼處理由 CONFIG.DODGE_WINDOW_ON_RESUME 決定(⚠ 待決定,見 godot/PARITY.md):
-  //   "remaining" 剩多少給多少(暫定,跟其他計時一致)/ "full" 重新給完整視窗 / "fail" 直接判閃躲失敗
+  // 斷線當下閃避視窗還開著的攻擊,恢復時怎麼處理由 CONFIG.DODGE_WINDOW_ON_RESUME 決定(已決定 "full",見 godot/PARITY.md #16):
+  //   "full" 重新給完整視窗 / "remaining" 剩多少給多少 / "fail" 直接判閃躲失敗
   // remaining/full 會重送一次 attack_incoming(同 attackId,resumed: true),讓雙方 client 重新顯示警示與剩餘倒數
   resumePendingAttacks(pausedMs) {
     for (const id of this.playerIds) {

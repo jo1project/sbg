@@ -52,7 +52,7 @@ setInterval(() => {
   }
 }, HEARTBEAT_MS);
 
-// 應用層心跳:client 每 1 秒送 ping,已 identify 的連線超過 HEARTBEAT_TIMEOUT_MS 沒收到任何訊息就當作斷線
+// 應用層心跳:client 每 1 秒送 ping,已 identify 的連線超過 HEARTBEAT_TIMEOUT_MS(5 秒)沒收到任何訊息就當作斷線
 // (直接 terminate,走下面 close 的寬限期流程)。上面 30 秒的 ws ping 只是兜底清掉還沒 identify 的殭屍連線。
 setInterval(() => {
   const now = Date.now();

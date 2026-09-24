@@ -67,10 +67,11 @@ export const CONFIG = {
   MATCH_WAIT_BEFORE_NPC_MS: 8000, // 隨機配對等待真人的時間
   INVITE_TIMEOUT_MS: 30000,       // 好友邀請有效期限
   RECONNECT_GRACE_MS: 10000,
-  HEARTBEAT_TIMEOUT_MS: 3000, // 已 identify 的連線超過這麼久沒收到任何訊息(client 每秒 ping)就視為斷線,進入寬限期
+  HEARTBEAT_TIMEOUT_MS: 5000, // 已 identify 的連線超過這麼久沒收到任何訊息(client 每秒 ping)就視為斷線,進入寬限期
+  // (5 秒:容忍行動網路切換/短暫卡頓;Flutter 版沒有自動重連,太短會讓網路抖動變成判負)
   // 斷線當下閃避視窗還開著,恢復時怎麼處理:"remaining" 剩多少給多少 / "full" 重新給完整視窗 / "fail" 判閃躲失敗
-  // ⚠ 待決定(見 godot/PARITY.md),目前暫用 "remaining"(跟其他計時「從暫停處繼續」一致)
-  DODGE_WINDOW_ON_RESUME: "remaining",
+  // 已決定用 "full":恢復時重送 attack_incoming 並重新給完整 1 秒(斷線方沒看到的那段不算,也不用 client 精準暫停本地警示計時)
+  DODGE_WINDOW_ON_RESUME: "full",
   MAP_WIDTH: 12,  // 直向手機比例地圖,12欄(x軸),需與地圖池每張地圖的 gridCols 一致
   MAP_HEIGHT: 24, // 24列(y軸),需與地圖池每張地圖的 gridRows 一致
   SNAKE_POSITION_SYNC_MS: 1000, // 玩家回報蛇身座標的頻率(伺服器內部使用,不轉發完整座標給對手)
