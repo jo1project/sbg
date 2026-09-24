@@ -1,6 +1,6 @@
 # 攻擊按鈕，照 Flutter client/lib/widgets/attack_button.dart：
 # 52 圓、深橘色半透明（disabled 變灰）、白色細框；點一下發動攻擊；長按（0.5 秒）在按鈕上方顯示說明氣泡，
-# 長按後放開只收起氣泡、不發動攻擊。尺寸單位是 dp，實際大小由外層 touch_controls.gd 用 scale 換算。
+# 長按後放開只收起氣泡、不發動攻擊。內部用 dp 計算，實際大小由外層 touch_controls.gd 用 anchor/offset 決定。
 extends Control
 
 signal pressed
@@ -24,7 +24,6 @@ var _tap_ok := false
 var _font: Font
 
 func _init() -> void:
-	size = Vector2(SIZE, SIZE)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# 預設字型沒有中文字，用系統字型
 	var f := SystemFont.new()
@@ -57,7 +56,7 @@ func _input(event: InputEvent) -> void:
 				pressed.emit()
 			get_viewport().set_input_as_handled()
 	elif event is InputEventScreenDrag and event.index == _touch:
-		var s := get_global_transform_with_canvas().get_scale().x
+		var s := get_global_transform_with_canvas().get_scale().x * size.x / SIZE
 		if (event.position - _down_pos).length() / s > TAP_SLOP:
 			_tap_ok = false
 		get_viewport().set_input_as_handled()
@@ -67,7 +66,8 @@ func _hit(screen_pos: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, size).has_point(local)
 
 func _draw() -> void:
-	var c := size / 2.0
+	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE * size.x / SIZE)
+	var c := Vector2(SIZE, SIZE) / 2.0
 	var base := Color.GRAY if disabled else DEEP_ORANGE
 	base.a = 0.9 if _show_tip else 0.45
 	draw_circle(c, SIZE / 2.0, base)

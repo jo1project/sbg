@@ -1,7 +1,8 @@
 # 虛擬搖桿，照 Flutter client/lib/widgets/joystick.dart：
 # 底座 100x100 圓、搖桿頭 40、最大拖曳半徑 45、死區 10；輸出離散的四方向（貪食蛇只需要上下左右，不做類比）。
 # 拖曳期間每次移動都回報方向；放開時搖桿頭回中心並發出 released（Flutter 用這個當「閃躲」操作）。
-# 尺寸單位是 Flutter 的邏輯像素（dp），實際大小由外層 touch_controls.gd 用 scale 換算。
+# 內部一律用 Flutter 的邏輯像素（dp）計算；實際大小由外層 touch_controls.gd 用 anchor/offset 決定，
+# 繪圖和拖曳量都依「實際大小 / 100dp」換算。
 # 只吃 InputEventScreenTouch/Drag（多指觸控各自獨立）；電腦上靠 emulate_touch_from_mouse 讓滑鼠也能用。
 extends Control
 
@@ -17,8 +18,11 @@ var _knob := Vector2.ZERO
 var _touch := -1
 
 func _init() -> void:
-	size = Vector2(SIZE, SIZE)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+# 畫面單位 -> dp 的倍率（含 CanvasLayer/縮放）
+func _px_per_dp() -> float:
+	return get_global_transform_with_canvas().get_scale().x * size.x / SIZE
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
@@ -32,7 +36,7 @@ func _input(event: InputEvent) -> void:
 			released.emit()
 			get_viewport().set_input_as_handled()
 	elif event is InputEventScreenDrag and event.index == _touch:
-		_drag(event.relative / get_global_transform_with_canvas().get_scale().x)
+		_drag(event.relative / _px_per_dp())
 		get_viewport().set_input_as_handled()
 
 func _hit(screen_pos: Vector2) -> bool:
@@ -60,7 +64,8 @@ func _drag(delta: Vector2) -> void:
 	direction.emit(d)
 
 func _draw() -> void:
-	var c := size / 2.0
+	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE * size.x / SIZE)
+	var c := Vector2(SIZE, SIZE) / 2.0
 	draw_circle(c, SIZE / 2.0, Color(1, 1, 1, 0.12))
 	draw_arc(c, SIZE / 2.0 - 0.5, 0, TAU, 64, Color(1, 1, 1, 0.3), 1.0, true)
 	# Flutter 用 Align(alignment: knob / radius) 擺搖桿頭，所以頭的中心最多偏離 (100-40)/2 = 30
