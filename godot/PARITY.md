@@ -2,11 +2,11 @@
 
 目標：`godot/` 跟 Flutter 版（`client/`）功能完全一致，連同一台伺服器（`server/`）、訊息格式完全相同。
 來源：`docs/snake-battle-spec.md`（下稱「規格」）＋ Flutter／伺服器實際程式碼。
-**例外**：斷線與重連（第 1、13 節）已決定照規格 6.2、不照 Flutter——Flutter 要跟著改才會一致（見文末差異 #1）。
+**例外**：斷線與重連（第 1、13 節）已決定照規格 6.2、不照 Flutter；**Flutter 決定不改**，所以這幾列兩邊會不一樣（見文末差異 #1）。
 
 **每次移植都要更新這份表**：改狀態、補上 Godot 實作位置、寫清楚怎麼驗證的。
 手動測試步驟見 `godot/TEST_SCENARIOS.md`（表中「驗證方式」欄的編號），除錯指令見 `server/README.md`「開發用除錯指令」，
-伺服器自動化測試：`cd server && npm test`。
+伺服器自動化測試：`cd server && npm test`（Node 22，見 `server/README.md`）。
 
 狀態定義：
 
@@ -27,11 +27,11 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 狀態 | 列數 |
 |---|---|
-| 完成 | 30 |
-| 進行中 | 9 |
+| 完成 | 31 |
+| 進行中 | 8 |
 | 未做 | 22 |
 | 已驗證 | 0（還沒跟 Flutter 並排跑手動情境） |
-| 之後再做 | 4 項（文末差異 #9、#13、#14、#15，不在上面 61 列裡） |
+| 之後再做 | 1 列（App 被殺掉後重開回到對戰）＋ 文末差異 #9、#13、#14、#15 |
 
 ---
 
@@ -43,7 +43,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | identify：本地保存 playerId、回報 deviceInfo | `game/game_controller.dart` `bootstrap()` `connectAndIdentify()` `_collectDeviceInfo()` | `net/net_client.gd`（`user://sbg_net.cfg`） | 完成 | C-01、C-02 |
 | 新帳號還原碼只顯示一次、restore_account 找回帳號 | `main.dart` `_RecoveryCodeOverlay`；`game_controller.dart` `restoreAccount()` | — | 未做 | C-03、C-04 |
 | 心跳 ping 每秒一次 | `game_controller.dart` `_startPing()` | `net/net_client.gd` | 完成 | C-05 |
-| 心跳逾時：3 秒沒收到訊息 = 斷線（伺服器與 client 兩邊都判） | ⚠ Flutter 沒有 client 端判定；伺服器端 `server.js` 應用層心跳 | `net/net_client.gd` `SILENCE_TIMEOUT`；伺服器 `server.js` | 完成 | D-10、`test/d_reconnect.mjs` |
+| 心跳逾時：5 秒沒收到訊息 = 斷線（伺服器與 client 兩邊都判） | ⚠ Flutter 沒有 client 端判定；伺服器端 `server.js` 應用層心跳 | `net/net_client.gd` `SILENCE_TIMEOUT`；伺服器 `server.js` | 完成 | D-10、`test/d_reconnect.mjs` |
 | 連線失敗：自動重試 | `game_controller.dart` `_onDisconnected()`；`main.dart` `_ConnectGate`（手動按重新連線） | `net/net_client.gd`（每 1 秒自動重試） | 進行中（Godot 沒有「連線失敗」畫面，只有狀態列文字） | C-06 |
 | **對戰中斷線 → 自動重連 → 恢復**（規格 6.2） | ⚠ **Flutter 沒有**（斷線後畫面卡住；見差異 #1） | `net/net_client.gd`（自動重連、同 playerId identify）、`game_session.gd`（`_on_identified` 等 `match_resumed`） | 完成 | D-05、D-07～D-11、`test/d_reconnect.mjs` |
 | App 切到背景 = 斷線（關連線、不送 leave_room），回前景自動重連 | ⚠ Flutter 目前是送 leave_room 直接判負（`main.dart` `didChangeAppLifecycleState()`，見差異 #1） | `net/net_client.gd` `go_background()` `come_foreground()`（電腦上 F5 模擬） | 完成 | C-07、D-09 |
@@ -155,7 +155,8 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 伺服器凍結整場計時（效果、閃避視窗、預告、雙殺等待、小地圖、NPC），恢復時從暫停處繼續 | 伺服器 `room.js` `pause()` `resume()` `setTimer()` | 同左 | 完成 | D-07、`test/d_reconnect.mjs` |
 | 同一則 match_resumed 讓雙方同時恢復 | ⚠ Flutter 靠 `opponent_reconnected` 解凍（仍會收到，舊版相容） | `game_session.gd`（`match_resumed`） | 完成 | D-11 |
 | 10 秒沒重連 → 斷線方判負；回來時補送 game_over | 伺服器 `server.js` | `game_session.gd` `_on_identified()`（inRoom: false） | 完成 | D-06、D-09 |
-| 斷線時閃避視窗開著，恢復後怎麼處理 | 伺服器 `room.js` `resumePendingAttacks()`、`CONFIG.DODGE_WINDOW_ON_RESUME` | 同左（Godot 收到 `attack_incoming resumed: true`） | 進行中（⚠ 待決定，暫用「給剩餘時間」） | D-08 |
+| 斷線時閃避視窗開著：恢復後重新給完整 1 秒（重送 `attack_incoming`，`resumed: true`） | 伺服器 `room.js` `resumePendingAttacks()`、`CONFIG.DODGE_WINDOW_ON_RESUME = "full"` | 同左（Godot 收到 `attack_incoming resumed: true`；警示 UI 本身還沒做） | 完成 | D-08、`test/d_reconnect.mjs` |
+| App 被系統殺掉後重開，回到進行中的對戰 | — | — | 之後再做 | D-12（備註見下） |
 
 ## 14. 其他 UI
 
@@ -187,14 +188,29 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 13 | 閃躲成功格擋特效 | — | **之後再做** |
 | 14 | 能量條滿量脈動 | — | **之後再做** |
 | 15 | 警示音效 | — | **之後再做** |
-| 16 | 斷線時閃避視窗開著 | ⚠ **待決定**（重給 1 秒 / 給剩餘時間 / 判失敗） | 三種都已實作，`CONFIG.DODGE_WINDOW_ON_RESUME` 切換，暫用 `remaining` |
+| 16 | 斷線時閃避視窗開著 | **已決定：重新給完整 1 秒** | 伺服器 `CONFIG.DODGE_WINDOW_ON_RESUME = "full"`；規格 6.2、D-08 已更新 |
+| 17 | App 被系統殺掉後重開回到對戰 | **之後再做** | 見下方備註 |
+| 18 | 心跳逾時 | **5 秒**（Flutter 不改、沒有重連，3 秒太容易把網路抖動變成判負） | 伺服器 `CONFIG.HEARTBEAT_TIMEOUT_MS = 5000`、Godot `net_client.gd` `SILENCE_TIMEOUT = 5.0`；規格 6.2、7.4 已更新 |
 
-### Flutter 最小改動範圍（配合 #1、#2，尚未決定要不要改）
+### 備註：App 被殺掉後重開回到對戰（#17，之後再做）
 
-伺服器改完之後，舊的 Flutter 還能連、能打，但斷線相關的行為會變差：
+現在重連只靠 client 記憶體裡的狀態，App 程序還活著（切背景、網路斷掉）才能恢復。App 被系統殺掉重開時需要：
+
+1. **伺服器在重連時送狀態快照**（例如新訊息 `match_state`，接在 `identified { reconnected: true, inRoom: true }` 之後）：
+   - 地圖（伺服器有 `room.maps[playerId]`，現在只在開局送一次 `obstacle_layout`）
+   - 場上的食物（`room.foods[playerId]`，現在只送 `food_spawned` 增量）
+   - 雙方能量、自己生效中的效果與剩餘時間、進行中還沒結算的攻擊（對手打過來的 / 自己打出去的）
+   - 對手 ID、房間 ID、開局倒數是否已結束
+2. **`snake_position_update` 加欄位**：現在只有 `headPos`、`bodyCells`，要再加**移動方向**（含轉向佇列）和**待增長節數**（直接攻擊命中還沒長完的格數），
+   伺服器才能把完整的蛇還給重開的 client。回報間隔是 1 秒，重開後的位置最多差 1 秒的移動量（凍結期間不會再動，所以斷線當下最後一次回報要在凍結前送出）。
+3. client 端：開機時如果本地記得「上次在對戰中」，identify 後收到 `match_state` 就直接進對戰畫面、套用快照、等 `match_resumed`。
+
+### Flutter 最小改動範圍（配合 #1、#2）——**已決定不改**，留作參考
+
+伺服器改完之後，Flutter 還能連、能打，但斷線相關的行為跟 Godot 不同：
 
 - **伺服器現在會凍結整場**，Flutter 斷線的那一方卻不知道要凍結（它的蛇計時器已停，但重連不回來），對手會看到凍結倒數 10 秒後獲勝——結果跟以前一樣，只是多等了凍結時間。
-- **心跳縮短成 3 秒**：Flutter 已經每秒 ping，正常情況不受影響；但 Flutter 沒有重連，一次 3 秒以上的網路抖動就會變成 10 秒後判負（以前要 60 秒心跳才會斷）。
+- **心跳縮短成 5 秒**（原本最多 60 秒）：Flutter 已經每秒 ping，正常情況不受影響；但 Flutter 沒有重連，一次 5 秒以上的網路停頓就會變成 10 秒後判負。因此心跳設 5 秒而不是 3 秒（#18）。
 
 要讓 Flutter 跟 Godot 行為一致，最小要改這些（都在 `game/game_controller.dart`、`main.dart`、`net/socket_service.dart`）：
 
@@ -202,6 +218,6 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 2. `game_controller.dart` `_onDisconnected()`：對戰中不要停掉對局狀態，改成凍結（跟 `_frozenByDisconnect` 同一套）＋顯示「連線中斷,重新連線中...」，並排程自動重連（`connectAndIdentify()` 重試）。
 3. `identified` 處理：`reconnected: true` 時不要重設對局，`inRoom: false` 時等補送的 `game_over`。
 4. 新增 `match_resumed` 處理：解除凍結（取代現在收到 `opponent_reconnected` 就解凍）；凍結期間要一起暫停的本地計時：移動 tick、座標同步、開局倒數、命中橫幅的 2 秒、效果的剩餘時間（`myEffect.endsAt` 要往後延 `pausedMs`）、閃躲警示的本地計時。
-5. `socket_service.dart`：3 秒沒收到任何訊息就自行判定斷線（不然網路靜默斷掉時 Flutter 可能好幾十秒才發現）。
+5. `socket_service.dart`：5 秒沒收到任何訊息就自行判定斷線（不然網路靜默斷掉時 Flutter 可能好幾十秒才發現）。
 
 預估改動：`game_controller.dart` 約 60～80 行、`main.dart` 約 10 行、`socket_service.dart` 約 15 行，不需要改畫面結構。

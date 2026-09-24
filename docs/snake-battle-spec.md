@@ -163,7 +163,8 @@
 ### 6.2 斷線處理
 - **斷線的判定**:
   - WebSocket 連線關閉
-  - 心跳逾時:客戶端每 1 秒送 `ping`,伺服器超過 **3 秒**沒收到該玩家任何訊息就視為斷線(客戶端同樣 3 秒沒收到任何訊息就自行判定斷線)
+  - 心跳逾時:客戶端每 1 秒送 `ping`,伺服器超過 **5 秒**沒收到該玩家任何訊息就視為斷線(客戶端同樣 5 秒沒收到任何訊息就自行判定斷線)。
+    5 秒是為了容忍行動網路切換(Wi-Fi↔行動網路、電梯、基地台換手)造成的短暫停頓
   - **App 切到背景 = 斷線**:客戶端主動關閉 WebSocket(不送 `leave_room`),伺服器立刻進入寬限期;回到前景時自動重連
 - 斷線後整場對局進入**凍結**(雙方蛇皆靜止,不會有人因斷線枉死):
   - 斷線方客戶端偵測到斷線後立刻凍結自己的蛇,顯示「連線中斷,重新連線中...」,並自動重連
@@ -177,9 +178,10 @@
   同時通知雙方,雙方的蛇從凍結的位置同時繼續
 - 超過 10 秒未重連:判定斷線方輸(`opponent_disconnect_timeout`);斷線方之後回來時收到 `identified { reconnected: true, inRoom: false }`,
   伺服器補送它錯過的 `game_over`
-- **斷線當下閃躲視窗還開著**:恢復後的處理待決定(重給完整 1 秒 / 給剩餘時間 / 判閃躲失敗),伺服器設定
-  `CONFIG.DODGE_WINDOW_ON_RESUME`,目前暫用「給剩餘時間」;恢復時伺服器重送同一個 `attack_incoming`(`resumed: true`,附剩餘視窗)
-- 目前客戶端重連後靠**記憶體中保留的狀態**繼續(蛇身、食物、效果倒數);若 App 被系統殺掉重開,伺服器沒有送回完整狀態,無法恢復畫面
+- **斷線當下閃躲視窗還開著**:恢復時**重新給完整 1 秒**。伺服器重送同一個 `attack_incoming`(同 attackId、`resumed: true`、
+  `serverAttackTime` 改成恢復的時間點、`dodgeWindowMs: 1000`),雙方重新顯示警示與倒數(伺服器設定 `CONFIG.DODGE_WINDOW_ON_RESUME = "full"`)
+- 客戶端重連後靠**記憶體中保留的狀態**繼續(蛇身、食物、效果倒數)。**App 被系統殺掉後重開回到對戰:之後再做**
+  (需要伺服器在重連時送狀態快照,見 `godot/PARITY.md`);目前這種情況等同斷線超過寬限期
 
 ---
 
@@ -225,7 +227,7 @@
 | `invite_received` | Server → 被邀請方 | 邀請送達且對方空閒時 | 顯示「XX邀請你對戰」+接受/拒絕 |
 | `invite_accept` / `invite_reject` / `invite_cancel` | Client → Server | 玩家操作時 | 接受/拒絕/撤回邀請 |
 | `invite_failed` / `invite_rejected` / `invite_timeout` / `invite_cancelled` | Server → 發起方(或雙方) | 對應情境觸發 | 告知邀請結果(對方忙碌、拒絕、30秒逾時、已撤回) |
-| 心跳 ping/pong | Client ↔ Server | 每秒一次 | 量測RTT(滑動平均),供延遲補償使用;雙方任一邊 3 秒沒收到訊息視為斷線(6.2 節) |
+| 心跳 ping/pong | Client ↔ Server | 每秒一次 | 量測RTT(滑動平均),供延遲補償使用;雙方任一邊 5 秒沒收到訊息視為斷線(6.2 節) |
 | `opponent_disconnected` | Server → 對手 | 一方斷線時 | `{ graceMs }`,對手凍結並顯示倒數(6.2 節) |
 | `opponent_reconnected` | Server → 對手 | 斷線方重連時 | 通知對手已重連(舊版客戶端用來解除凍結) |
 | `match_resumed` | Server → Both | 斷線方重連、房間內真人都在線時 | 同一則訊息同時送雙方 `{ pausedMs, serverTime }`,雙方從凍結處同時恢復 |

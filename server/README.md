@@ -16,7 +16,8 @@
 - 防Spam機制(連續被閃躲3次反噬暫停3秒)
 - 斷線10秒重連寬限期(規格6.2):斷線時整場凍結(`room.js` `pause()`,效果/閃躲視窗/預告/雙殺等待/小地圖/NPC 都停),
   同一個 playerId 在寬限期內重連後用同一則 `match_resumed` 同時恢復雙方;超時判負,斷線方回來時補送 `game_over`
-- 應用層心跳:已 identify 的連線 3 秒沒收到任何訊息(client 每秒 ping)就視為斷線(`CONFIG.HEARTBEAT_TIMEOUT_MS`)
+- 應用層心跳:已 identify 的連線 5 秒沒收到任何訊息(client 每秒 ping)就視為斷線(`CONFIG.HEARTBEAT_TIMEOUT_MS`)
+- 斷線當下閃躲視窗還開著:恢復時重送 `attack_incoming`(`resumed: true`)並重新給完整 1 秒(`CONFIG.DODGE_WINDOW_ON_RESUME = "full"`)
 - 簡化版中等難度NPC(半隨機攻擊決策,5~10能量隨機門檻出手,30%閃躲成功率)
 - 死亡判定(客戶端判定、伺服器驗證碰撞後才採信 death_report,含200ms Double KO窗口)
 - 使用者ID系統的資料庫持久化(SQLite,含還原碼機制)
@@ -36,17 +37,25 @@ npm test                          # room.test.js + test/ 下全部情境腳本
 node test/s10_fake_death.mjs      # 單獨跑一個
 ```
 
+**Node 版本**:用 Node 22 LTS(`server/.nvmrc`)。`better-sqlite3@11` 沒有 Node 24 的預編譯檔,Node 24 上 `npm install`
+會改成現場編譯,沒有 C++ 編譯工具就會失敗。沒有 nvm 時可以不動系統的 Node,只在這個指令裡用 Node 22:
+
+```bash
+npx -y -p node@22 -c "npm ci && npm test"
+```
+
 `test/` 下的腳本用 WebSocket 直接模擬玩家(情境對照 `godot/TEST_SCENARIOS.md`)。沒設 `SERVER_URL` 時每個腳本
 會自己在隨機埠號起一台測試伺服器(開除錯指令、`DB_PATH` 指到暫存資料夾,不會碰 `data.sqlite`);
 要測已經在跑的伺服器就設 `SERVER_URL=ws://127.0.0.1:8080`(那台要用 `SBG_DEBUG_COMMANDS=1` 啟動)。
 
 | 腳本 | 情境 |
 |---|---|
+| `test/c04_account_db.mjs` | C-02～C-04 玩家 ID/還原碼寫進 SQLite、重開伺服器後還在、restore_account(唯一真的讀寫資料庫的測試) |
 | `test/s10_fake_death.mjs` | S-10 假的 death_report 被拒絕 |
 | `test/f04_fake_food.mjs` | F-04 foodId 對、headPos 錯的吃食回報被忽略 |
 | `test/w03_double_ko.mjs` | W-03 200ms 內雙方死亡 = 平手;超過 = 先回報的輸 |
 | `test/e07_pause_body_death.mjs` | E-07 暫停結束瞬間撞身體,death_report self 被採信 |
-| `test/d_reconnect.mjs` | D-07～D-10 斷線凍結、效果剩餘時間、閃避視窗、切背景 5/12 秒、心跳逾時 |
+| `test/d_reconnect.mjs` | D-07～D-10 斷線凍結、效果剩餘時間、閃避視窗重給 1 秒、切背景 5/12 秒、5 秒心跳逾時 |
 
 ## 死亡回報的碰撞驗證
 
