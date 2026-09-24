@@ -53,6 +53,11 @@ export class Room {
     this.ended = false;
     this.onEnded = null; // 由外部(matchmaking.js)注入,對戰結束時通知移除房間
 
+    // 斷線寬限期間整場對局暫停(規格6.2):所有對局計時都走 setTimer(),pause() 時停住、resume() 時從剩下的時間繼續
+    this.paused = false;
+    this.pausedAt = null;
+    this.timers = new Set();
+
     this.sendMapToPlayer(playerA.id);
     this.sendMapToPlayer(playerB.id);
     this.spawnInitialFoods();
@@ -68,6 +73,101 @@ export class Room {
     for (const id of this.playerIds) {
       if (id === excludeId) continue;
       this.players[id].send(type, payload);
+    }
+  }
+
+  // ---------- 可暫停的計時器(斷線寬限期間凍結整場對局,見規格6.2) ----------
+
+  setTimer(fn, ms) {
+    const t = { remaining: ms, startedAt: Date.now(), handle: null };
+    t.fire = () => {
+      this.timers.delete(t);
+      fn();
+    };
+    if (!this.paused) t.handle = setTimeout(t.fire, ms);
+    this.timers.add(t);
+    return t;
+  }
+
+  clearTimer(t) {
+    if (!t) return;
+    clearTimeout(t.handle);
+    this.timers.delete(t);
+  }
+
+  // 任一方斷線時呼叫:停住所有對局計時(效果持續時間、閃避視窗、效果預告、Double KO 等待、小地圖廣播、NPC 行為)
+  pause() {
+    if (this.paused || this.ended) return;
+    const now = Date.now();
+    this.paused = true;
+    this.pausedAt = now;
+    for (const t of this.timers) {
+      clearTimeout(t.handle);
+      t.handle = null;
+      t.remaining = Math.max(0, t.remaining - (now - t.startedAt));
+    }
+  }
+
+  // 斷線方重連(且房間裡所有真人都在線)時呼叫:從暫停的地方繼續,並用同一則 match_resumed 通知雙方
+  resume() {
+    if (this.ended) return 0;
+    const now = Date.now();
+    const pausedMs = this.paused ? now - this.pausedAt : 0;
+    if (this.paused) {
+      const pausedAt = this.pausedAt;
+      this.paused = false;
+      this.pausedAt = null;
+      // 生效中的效果:到期時間往後延暫停的長度,效果不會在凍結期間跑完
+      for (const id of this.playerIds) {
+        const p = this.players[id];
+        if (p.activeEffect && p.activeEffect.endsAt > pausedAt) p.activeEffect.endsAt += pausedMs;
+      }
+      for (const t of this.timers) {
+        t.startedAt = now;
+        t.handle = setTimeout(t.fire, t.remaining);
+      }
+      this.resumePendingAttacks(pausedMs);
+    }
+    this.broadcast(S2C.MATCH_RESUMED, { pausedMs, serverTime: now });
+    return pausedMs;
+  }
+
+  // 斷線當下閃避視窗還開著的攻擊,恢復時怎麼處理由 CONFIG.DODGE_WINDOW_ON_RESUME 決定(⚠ 待決定,見 godot/PARITY.md):
+  //   "remaining" 剩多少給多少(暫定,跟其他計時一致)/ "full" 重新給完整視窗 / "fail" 直接判閃躲失敗
+  // remaining/full 會重送一次 attack_incoming(同 attackId,resumed: true),讓雙方 client 重新顯示警示與剩餘倒數
+  resumePendingAttacks(pausedMs) {
+    for (const id of this.playerIds) {
+      const attacker = this.players[id];
+      const attack = attacker.pendingAttack;
+      if (!attack || attack.resolved || !attack.windowTimer) continue;
+      const defender = this.players[attack.targetId];
+      const mode = CONFIG.DODGE_WINDOW_ON_RESUME;
+      if (mode === "fail") {
+        this.resolveAttack(attacker, defender, attack.attackId, { dodged: false, timedOut: true });
+        continue;
+      }
+      let windowLeft;
+      if (mode === "full") {
+        this.clearTimer(attack.windowTimer);
+        attack.serverAttackTime = Date.now();
+        windowLeft = CONFIG.DODGE_WINDOW_MS;
+        attack.windowTimer = this.setTimer(
+          () => this.resolveAttack(attacker, defender, attack.attackId, { dodged: false, timedOut: true }),
+          CONFIG.DODGE_WINDOW_MS + defender.rttMs / 2 + 50
+        );
+      } else {
+        attack.serverAttackTime += pausedMs;
+        windowLeft = Math.max(0, attack.serverAttackTime + CONFIG.DODGE_WINDOW_MS - Date.now());
+      }
+      this.broadcast(S2C.ATTACK_INCOMING, {
+        attackId: attack.attackId,
+        attackType: attack.attackType,
+        attackerId: attacker.id,
+        attackerEnergyUsed: attack.effectValue,
+        serverAttackTime: attack.serverAttackTime,
+        dodgeWindowMs: Math.round(windowLeft),
+        resumed: true,
+      });
     }
   }
 
@@ -151,15 +251,18 @@ export class Room {
   startMinimapBroadcast() {
     this.minimapTimer = setInterval(() => {
       if (this.ended) return clearInterval(this.minimapTimer);
+      if (this.paused) return; // 斷線寬限期間不廣播
       for (const playerId of this.playerIds) {
         const player = this.players[playerId];
         const opponent = this.other(playerId);
         if (!player.lastHeadPos) continue;
 
+        // 對稱的 -N～+N 格整數雜訊(每個值機率相同)
         const noise = CONFIG.MINIMAP_NOISE_RANGE;
+        const jitter = () => Math.floor(Math.random() * (2 * noise + 1)) - noise;
         const fuzzyPos = {
-          x: player.lastHeadPos.x + Math.floor((Math.random() * 2 - 1) * noise),
-          y: player.lastHeadPos.y + Math.floor((Math.random() * 2 - 1) * noise),
+          x: player.lastHeadPos.x + jitter(),
+          y: player.lastHeadPos.y + jitter(),
         };
         opponent.send(S2C.OPPONENT_POSITION_FUZZY, { position: fuzzyPos });
       }
@@ -174,6 +277,10 @@ export class Room {
     attacker.clearExpiredEffect();
     target.clearExpiredEffect();
 
+    // 斷線寬限期間整場凍結,不接受新的攻擊
+    if (this.paused) {
+      return attacker.send(S2C.ATTACK_REJECTED, { reason: "match_paused" });
+    }
     // 檢查順序見規格文件 4.3
     if (attacker.isPaused()) {
       return attacker.send(S2C.ATTACK_REJECTED, { reason: "attacker_paused" });
@@ -237,14 +344,14 @@ export class Room {
       // 開發用除錯指令 debug_npc_dodge(見 debug.js,正式環境不會被設定)
       if (target.debugDodgeMode === "always") dodged = true;
       if (target.debugDodgeMode === "never") dodged = false;
-      setTimeout(() => {
+      this.setTimer(() => {
         this.resolveAttack(attacker, target, attackId, { dodged });
       }, 100 + Math.random() * 150); // 模擬反應延遲,避免瞬間判定顯得不自然
       return;
     }
 
     // 若對方在視窗內沒有送 dodge_attempt,逾時自動判定失敗
-    setTimeout(() => {
+    attacker.pendingAttack.windowTimer = this.setTimer(() => {
       this.resolveAttack(attacker, target, attackId, { dodged: false, timedOut: true });
     }, CONFIG.DODGE_WINDOW_MS + target.rttMs / 2 + 50); // 額外緩衝給網路延遲
   }
@@ -253,6 +360,7 @@ export class Room {
     const defender = this.players[defenderId];
     const attack = defender.pendingIncomingAttack;
     if (!attack || attack.attackId !== attackId || attack.resolved) return;
+    if (this.paused) return; // 凍結期間閃避視窗是停住的
 
     const attacker = this.players[this.playerIds.find((id) => id !== defenderId)];
 
@@ -269,6 +377,7 @@ export class Room {
     const attack = attacker.pendingAttack;
     if (!attack || attack.attackId !== attackId || attack.resolved) return;
     attack.resolved = true;
+    this.clearTimer(attack.windowTimer);
     attacker.pendingAttack = null;
     defender.pendingIncomingAttack = null;
 
@@ -299,7 +408,7 @@ export class Room {
       });
 
       // 效果延遲1秒後正式生效(對應前端的預告/攻擊動畫時間)
-      setTimeout(() => {
+      this.setTimer(() => {
         defender.activeEffect = {
           type: attack.rolledEffect,
           endsAt: Date.now() + durationMs,
@@ -373,7 +482,7 @@ export class Room {
 
     // 只有這方回報死亡,先記錄,等待一小段時間看對手是否也在Double KO窗口內死亡
     // (避免對手其實也快死了,只是網路延遲晚一點點送達,誤判為單方死亡)
-    setTimeout(() => {
+    this.setTimer(() => {
       if (this.ended) return;
       if (opponent.deathReportedAt) return; // 期間對手也回報了,上面的分支會處理
       this.endGame({ reason: "single_death", winnerId: opponent.id });
@@ -386,7 +495,14 @@ export class Room {
     if (this.ended) return;
     this.ended = true;
     clearInterval(this.minimapTimer);
+    for (const t of this.timers) clearTimeout(t.handle);
+    this.timers.clear();
     this.broadcast(S2C.GAME_OVER, result);
+    // 斷線中的玩家收不到,等他重連時補送(見 server.js identify 的重連分支)
+    for (const id of this.playerIds) {
+      const p = this.players[id];
+      if (!p.isNpc && !p.connected) p.missedGameOver = result;
+    }
     // 清掉雙方的 roomId,否則 Player.isBusy() 會永遠判定為忙碌,再也配不到對戰
     for (const id of this.playerIds) {
       if (this.players[id].roomId === this.id) this.players[id].roomId = null;

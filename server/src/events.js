@@ -11,7 +11,7 @@ export const C2S = {
   INVITE_CANCEL: "invite_cancel",
   PING: "ping",
   FOOD_EATEN_REQUEST: "food_eaten_request",
-  // cause: "wall" | "self" | "obstacle", headPos: 死亡當下蛇頭座標,bodyCells: 死亡當下蛇身佔用座標(不含頭)
+  // cause: "wall" | "self" | "obstacle", headPos: 撞上的那一格(新蛇頭座標),bodyCells: 移動前的完整蛇身佔用座標(含頭,index 0 為頭)
   // 伺服器用這三個欄位做碰撞驗證,見 room.js validateDeathReport()
   DEATH_REPORT: "death_report",
   SNAKE_POSITION_UPDATE: "snake_position_update", // 每1秒回報一次自己的蛇身座標(伺服器內部用)
@@ -45,6 +45,7 @@ export const S2C = {
   OPPONENT_POSITION_FUZZY: "opponent_position_fuzzy", // 模糊小地圖用,每2秒推播一次
   OPPONENT_DISCONNECTED: "opponent_disconnected",
   OPPONENT_RECONNECTED: "opponent_reconnected",
+  MATCH_RESUMED: "match_resumed", // 斷線方重連後,同一則訊息同時送給雙方:{ pausedMs, serverTime },雙方從凍結處同時恢復
   GAME_OVER: "game_over",
   ERROR: "error",
 };
@@ -66,6 +67,10 @@ export const CONFIG = {
   MATCH_WAIT_BEFORE_NPC_MS: 8000, // 隨機配對等待真人的時間
   INVITE_TIMEOUT_MS: 30000,       // 好友邀請有效期限
   RECONNECT_GRACE_MS: 10000,
+  HEARTBEAT_TIMEOUT_MS: 3000, // 已 identify 的連線超過這麼久沒收到任何訊息(client 每秒 ping)就視為斷線,進入寬限期
+  // 斷線當下閃避視窗還開著,恢復時怎麼處理:"remaining" 剩多少給多少 / "full" 重新給完整視窗 / "fail" 判閃躲失敗
+  // ⚠ 待決定(見 godot/PARITY.md),目前暫用 "remaining"(跟其他計時「從暫停處繼續」一致)
+  DODGE_WINDOW_ON_RESUME: "remaining",
   MAP_WIDTH: 12,  // 直向手機比例地圖,12欄(x軸),需與地圖池每張地圖的 gridCols 一致
   MAP_HEIGHT: 24, // 24列(y軸),需與地圖池每張地圖的 gridRows 一致
   SNAKE_POSITION_SYNC_MS: 1000, // 玩家回報蛇身座標的頻率(伺服器內部使用,不轉發完整座標給對手)

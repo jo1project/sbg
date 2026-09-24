@@ -52,12 +52,58 @@ setInterval(() => {
   }
 }, HEARTBEAT_MS);
 
+// 應用層心跳:client 每 1 秒送 ping,已 identify 的連線超過 HEARTBEAT_TIMEOUT_MS 沒收到任何訊息就當作斷線
+// (直接 terminate,走下面 close 的寬限期流程)。上面 30 秒的 ws ping 只是兜底清掉還沒 identify 的殭屍連線。
+setInterval(() => {
+  const now = Date.now();
+  for (const p of onlinePlayers.values()) {
+    if (p.isNpc || !p.connected || !p.ws) continue;
+    if (now - (p.lastSeenAt || now) > CONFIG.HEARTBEAT_TIMEOUT_MS) {
+      console.log(`[heartbeat] ${p.id} ${now - p.lastSeenAt}ms 沒有訊息,視為斷線`);
+      p.ws.terminate();
+    }
+  }
+}, 500);
+
+// 斷線寬限期內重連(或是舊連線其實已死、伺服器還沒發現就先收到新連線):把新的 ws 綁回原本的 Player,
+// 保留能量/效果/房間狀態;房間裡所有真人都在線時恢復對局(match_resumed 同時送給雙方)。
+function resumeConnection(existing, ws, deviceInfo) {
+  const oldWs = existing.ws;
+  existing.ws = ws;
+  existing.connected = true;
+  existing.lastSeenAt = Date.now();
+  existing.deviceInfo = deviceInfo || existing.deviceInfo;
+  clearTimeout(existing.disconnectTimer);
+  existing.disconnectTimer = null;
+  wsToPlayerId.set(ws, existing.id);
+  if (oldWs && oldWs !== ws) {
+    wsToPlayerId.delete(oldWs);
+    oldWs.terminate(); // 它的 close 事件會因為 player.ws 已經換掉而被忽略
+  }
+
+  const room = getRoom(existing);
+  existing.send(S2C.IDENTIFIED, { playerId: existing.id, reconnected: true, inRoom: !!(room && !room.ended) });
+  if (existing.missedGameOver) {
+    // 寬限期已過、對局在斷線期間結束了:補送結果
+    existing.send(S2C.GAME_OVER, existing.missedGameOver);
+    existing.missedGameOver = null;
+  }
+  if (!room || room.ended) return existing;
+
+  const opponent = room.other(existing.id);
+  opponent.send(S2C.OPPONENT_RECONNECTED, {}); // 舊版 client(Flutter)靠這個解除凍結
+  const allBack = room.playerIds.every((id) => room.players[id].isNpc || room.players[id].connected);
+  if (allBack) room.resume();
+  return existing;
+}
+
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", heartbeat);
   let player = null; // 需等待客戶端送出 identify 後才建立/綁定
 
   ws.on("message", (raw) => {
+    if (player && player.ws === ws) player.lastSeenAt = Date.now();
     let msg;
     try {
       msg = JSON.parse(raw.toString());
@@ -95,21 +141,9 @@ wss.on("connection", (ws) => {
       const playerId = record.playerId;
       const existingConn = onlinePlayers.get(playerId);
 
-      if (existingConn && !existingConn.connected) {
-        // 寬限期內重連:重新綁定 ws,保留原本的能量/effect/房間狀態
-        existingConn.ws = ws;
-        existingConn.connected = true;
-        existingConn.deviceInfo = msg.deviceInfo || existingConn.deviceInfo;
-        clearTimeout(existingConn.disconnectTimer);
-        player = existingConn;
-        wsToPlayerId.set(ws, playerId);
-        player.send(S2C.IDENTIFIED, { playerId, reconnected: true });
-
-        const room = getRoom(player);
-        if (room) {
-          const opponent = room.other(player.id);
-          opponent.send(S2C.OPPONENT_RECONNECTED, {});
-        }
+      if (existingConn && (!existingConn.connected || getRoom(existingConn))) {
+        // 寬限期內重連(含:舊連線在房間裡、伺服器還沒發現它已經斷了)
+        player = resumeConnection(existingConn, ws, msg.deviceInfo);
         return;
       }
 
@@ -125,6 +159,7 @@ wss.on("connection", (ws) => {
 
       player = new Player(playerId, ws);
       player.deviceInfo = msg.deviceInfo || "unknown";
+      player.lastSeenAt = Date.now();
       onlinePlayers.set(playerId, player);
       wsToPlayerId.set(ws, playerId);
 
@@ -218,6 +253,7 @@ wss.on("connection", (ws) => {
 
   ws.on("close", () => {
     if (!player) return;
+    if (player.ws !== ws) return; // 已經被重連的新連線取代,這條舊連線關掉不影響狀態
     player.connected = false;
     matchmaker.leaveQueue(player);
 
@@ -234,10 +270,10 @@ wss.on("connection", (ws) => {
     if (!room || room.ended) return;
 
     const opponent = room.other(player.id);
+    // 10秒寬限期:整場對局凍結(所有對局計時暫停),雙方 client 都凍結自己的蛇,重連後由 match_resumed 同時恢復
+    room.pause();
     opponent.send(S2C.OPPONENT_DISCONNECTED, { graceMs: CONFIG.RECONNECT_GRACE_MS });
 
-    // 10秒寬限期:期間暫停判定(此skeleton先不強制凍結遊戲時鐘,
-    // 實際上線前需搭配前端在收到 OPPONENT_DISCONNECTED 時暫停操作)
     player.disconnectTimer = setTimeout(() => {
       if (player.connected) return; // 已重連
       room.endGame({ reason: "opponent_disconnect_timeout", winnerId: opponent.id });

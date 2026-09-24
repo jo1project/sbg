@@ -18,7 +18,7 @@ export class NpcPlayer extends Player {
   startBehavior(room) {
     // 模擬 NPC 吃食物累積能量(簡化:固定間隔隨機加能量)
     this.foodTimer = setInterval(() => {
-      if (this.isPaused()) return;
+      if (this.isPaused() || room.paused) return; // room.paused:對手斷線寬限期間整場凍結
       this.energy += 1;
       room.broadcast("energy_update", {
         playerId: this.id,
@@ -29,7 +29,7 @@ export class NpcPlayer extends Player {
 
     // 能量達到隨機門檻(5~10)後才會出手,而非固定滿量,模擬中等難度的出手時機
     this.attackTimer = setInterval(() => {
-      if (this.isPaused() || this.pendingAttack) return;
+      if (this.isPaused() || this.pendingAttack || room.paused) return;
       if (this.debugAutoAttackOff) return; // 開發用除錯指令 debug_npc_auto_attack(見 debug.js)
       if (this.energy < this.attackEnergyThreshold) return;
       const attackType = Math.random() < 0.5 ? "direct" : "random";
