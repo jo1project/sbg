@@ -6,7 +6,7 @@ extends Camera3D
 @export_range(10, 90) var fov_deg := 28.0
 @export_range(10, 80) var pitch_deg := 35.0
 @export var offset := Vector3(0, 7.5, 10.6)
-@export var smoothing := 4.0  # 越大跟越緊
+@export var smoothing := 12.0  # 越大跟越緊；12 ≈ 83ms 追上 63% 的距離，跟得上角色但保留一點緩衝
 @export var debug_print := true
 
 var _printed := false
