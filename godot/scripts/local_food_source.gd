@@ -8,9 +8,6 @@ const FOOD_COUNT := 3   # 同 server events.js CONFIG.FOOD_COUNT
 
 var map: MapLoader
 var occupied_by_snake: Callable   # () -> Array[Vector2i]
-# 測試用：產生時有這個機率改從 bias_cells 裡挑（讓自動繞圈的假蛇頭吃得到），0 = 完全照伺服器規則
-var bias_cells: Array[Vector2i] = []
-var bias_chance := 0.0
 
 var _foods := {}   # foodId -> Vector2i
 var _next_id := 0
@@ -42,8 +39,7 @@ func _spawn() -> void:
 		taken[c] = true
 	var pos := Vector2i.ZERO
 	for attempt in 50:
-		var pool := bias_cells if not bias_cells.is_empty() and randf() < bias_chance else _floor
-		pos = pool[randi() % pool.size()]
+		pos = _floor[randi() % _floor.size()]
 		if not taken.has(pos) and not _blocked.has(pos) and map.is_floor(pos):
 			break
 	_next_id += 1

@@ -24,6 +24,8 @@ func _ready() -> void:
 	if not map.load_file(map_path):
 		return
 	_plan_torches()
+	if target and target.has_method("set_map"):
+		target.set_map(map)
 	if target and target.has_method("set_start"):
 		target.set_start(MapLoader.cell_center(map.spawn))
 

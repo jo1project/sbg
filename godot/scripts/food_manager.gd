@@ -8,8 +8,6 @@ const Gem := preload("res://scripts/gem.gd")
 
 @export var snake: Node3D            # snake_train.gd
 @export var chunk_manager: Node3D    # 拿地圖資料
-## 測試用（只影響本地產生器）：新寶石有這個機率放在假蛇頭的繞圈路線上，讓自動測試吃得到；0 = 完全隨機
-@export_range(0, 1) var test_route_bias := 0.5
 
 var source: Node                     # food_source.gd
 var _gems := {}                      # foodId -> [Gem 節點, Vector2i]
@@ -27,8 +25,6 @@ func _make_source() -> Node:
 	s.name = "LocalFoodSource"
 	s.map = chunk_manager.map
 	s.occupied_by_snake = snake.occupied_cells
-	s.bias_cells = snake.route_cells()
-	s.bias_chance = test_route_bias
 	return s
 
 func _on_food_spawned(food_id: String, cell: Vector2i) -> void:
