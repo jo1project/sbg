@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const scripts = [
+  "c04_account_db.mjs",
   "s10_fake_death.mjs",
   "f04_fake_food.mjs",
   "w03_double_ko.mjs",

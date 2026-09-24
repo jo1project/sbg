@@ -26,10 +26,11 @@ export function finish(name) {
 }
 
 // ---------- 伺服器 ----------
-export async function startServer() {
+// dbDir:指定資料庫所在的暫存資料夾(測「重開伺服器資料還在」時兩次用同一個);不給就新開一個
+export async function startServer({ dbDir = null } = {}) {
   if (process.env.SERVER_URL) return { url: process.env.SERVER_URL, stop: async () => {} };
   const port = 20000 + Math.floor(Math.random() * 20000);
-  const tmp = mkdtempSync(path.join(os.tmpdir(), "sbg-test-"));
+  const tmp = dbDir || mkdtempSync(path.join(os.tmpdir(), "sbg-test-"));
   const proc = spawn(process.execPath, ["src/server.js"], {
     cwd: SERVER_DIR,
     env: {
@@ -59,9 +60,11 @@ export async function startServer() {
   return {
     url,
     log: () => log,
-    stop: async () => {
+    dbDir: tmp,
+    stop: async ({ keepDb = false } = {}) => {
       proc.kill();
-      await sleep(200);
+      await sleep(300);
+      if (keepDb) return;
       try {
         rmSync(tmp, { recursive: true, force: true });
       } catch {

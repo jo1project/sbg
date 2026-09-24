@@ -47,7 +47,7 @@ await runStandalone("D 斷線與重連", async (url) => {
   await sleep(3300);
   check(!(await state(a))?.activeEffect, "恢復後再過 3 秒效果結束");
 
-  // ---------- D-08:閃避視窗開著時斷線(目前 DODGE_WINDOW_ON_RESUME = remaining,待決定) ----------
+  // ---------- D-08:閃避視窗開著時斷線 → 恢復後重新給完整 1 秒(DODGE_WINDOW_ON_RESUME = full) ----------
   await dbg.cmd({ type: "debug_set_energy", playerId: b.playerId, energy: 2 });
   s = a.mark();
   b.send({ type: "attack_request", attackType: "direct", clientTime: Date.now() });
@@ -60,13 +60,29 @@ await runStandalone("D 斷線與重連", async (url) => {
   const inc2 = await a.waitFor((m) => m.type === "attack_incoming" && m.resumed, 1000, s2);
   console.log(`      (DODGE_WINDOW_ON_RESUME = ${CONFIG.DODGE_WINDOW_ON_RESUME})`);
   check(inc2?.attackId === inc?.attackId, "重連後重送同一個 attack_incoming(resumed: true)");
-  if (CONFIG.DODGE_WINDOW_ON_RESUME === "remaining") {
-    check(near(inc2?.dodgeWindowMs, 700, 150), `remaining:剩餘視窗約 700ms(實際 ${inc2?.dodgeWindowMs})`);
-  }
-  await sleep(200);
+  check(CONFIG.DODGE_WINDOW_ON_RESUME === "full", "設定是 full(重新給完整 1 秒)");
+  check(inc2?.dodgeWindowMs === CONFIG.DODGE_WINDOW_MS, `重送的警示給完整視窗 ${CONFIG.DODGE_WINDOW_MS}ms(實際 ${inc2?.dodgeWindowMs})`);
+  check(inc2 && inc2.serverAttackTime > inc.serverAttackTime + 2000, "視窗起點改成恢復的時間點");
+  // 原本 1 秒的視窗早就過了(斷線前 0.3 + 凍結 2 秒),恢復後 0.8 秒才閃:只有重新給完整 1 秒才會成功
+  await sleep(800);
   a.send({ type: "dodge_attempt", attackId: inc.attackId, clientActionTime: Date.now() });
   const r2 = await a.waitFor((m) => m.type === "attack_result" && m.attackId === inc.attackId, 1500, s2);
-  check(r2?.dodged === true, "恢復後在剩餘視窗內閃避 → 成功");
+  check(r2?.dodged === true, "恢復後 0.8 秒才閃避 → 成功(完整 1 秒內)");
+
+  // 不閃:恢復後完整 1 秒到了才判失敗
+  await dbg.cmd({ type: "debug_set_energy", playerId: b.playerId, energy: 2 });
+  let s6 = a.mark();
+  b.send({ type: "attack_request", attackType: "direct", clientTime: Date.now() });
+  const inc3 = await a.waitFor((m) => m.type === "attack_incoming", 1000, s6);
+  await sleep(300);
+  a.drop();
+  await sleep(1500);
+  s6 = a.mark();
+  await a.reconnect();
+  const tResume = Date.now();
+  const r3 = await a.waitFor((m) => m.type === "attack_result" && m.attackId === inc3?.attackId, 2500, s6);
+  const dtFail = Date.now() - tResume;
+  check(r3?.dodged === false && dtFail >= 950, `恢復後不閃 → 完整 1 秒後才判閃避失敗(實際 ${dtFail}ms)`);
 
   // ---------- D-09:切背景 5 秒後回來,對戰繼續 ----------
   sb = b.mark();
@@ -77,13 +93,13 @@ await runStandalone("D 斷線與重連", async (url) => {
   check(id3?.inRoom === true && !!(await a.waitFor((m) => m.type === "match_resumed", 1000, s3)), "5 秒後回來 → 對戰繼續");
   check(!b.msgs.slice(sb).some((m) => m.type === "game_over"), "B 沒有收到 game_over");
 
-  // ---------- D-10:心跳逾時(3 秒沒訊息)→ 視為斷線 ----------
+  // ---------- D-10:心跳逾時(5 秒沒訊息)→ 視為斷線 ----------
   sb = b.mark();
   a.stopPing(); // 連線還在,但不再送任何訊息(例如 App 被系統凍結)
   const t0 = Date.now();
-  const disc2 = await b.waitFor((m) => m.type === "opponent_disconnected", 5000, sb);
+  const disc2 = await b.waitFor((m) => m.type === "opponent_disconnected", CONFIG.HEARTBEAT_TIMEOUT_MS + 2000, sb);
   const dt = Date.now() - t0;
-  check(!!disc2 && dt >= CONFIG.HEARTBEAT_TIMEOUT_MS - 100 && dt <= CONFIG.HEARTBEAT_TIMEOUT_MS + 1000, `停止 ping 約 3 秒後被判斷線(實際 ${dt}ms)`);
+  check(!!disc2 && dt >= CONFIG.HEARTBEAT_TIMEOUT_MS - 100 && dt <= CONFIG.HEARTBEAT_TIMEOUT_MS + 1000, `停止 ping 約 ${CONFIG.HEARTBEAT_TIMEOUT_MS / 1000} 秒後被判斷線(實際 ${dt}ms)`);
   const s4 = a.mark();
   await a.reconnect();
   check(!!(await a.waitFor((m) => m.type === "match_resumed", 1000, s4)), "重連後恢復");
