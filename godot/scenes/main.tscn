@@ -1,7 +1,7 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/fake_snake.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/snake_train.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/follow_camera.gd" id="3"]
 [ext_resource type="Shader" path="res://assets/vignette.gdshader" id="4"]
 
@@ -22,12 +22,6 @@ dof_blur_far_distance = 18.0
 dof_blur_far_transition = 14.0
 dof_blur_amount = 0.15
 
-[sub_resource type="StandardMaterial3D" id="SnakeMat"]
-albedo_color = Color(0.3, 0.9, 0.4, 1)
-
-[sub_resource type="CapsuleMesh" id="SnakeMesh"]
-material = SubResource("SnakeMat")
-
 [sub_resource type="ShaderMaterial" id="VignetteMat"]
 shader = ExtResource("4")
 
@@ -39,17 +33,15 @@ camera_attributes = SubResource("Attr")
 
 [node name="ChunkManager" type="Node3D" parent="." node_paths=PackedStringArray("target")]
 script = ExtResource("1")
-target = NodePath("../FakeSnake")
+target = NodePath("../Snake")
 
-[node name="FakeSnake" type="Node3D" parent="."]
+[node name="Snake" type="Node3D" parent="." node_paths=PackedStringArray("camera")]
 script = ExtResource("2")
-
-[node name="Body" type="MeshInstance3D" parent="FakeSnake"]
-mesh = SubResource("SnakeMesh")
+camera = NodePath("../Camera3D")
 
 [node name="Camera3D" type="Camera3D" parent="." node_paths=PackedStringArray("target")]
 script = ExtResource("3")
-target = NodePath("../FakeSnake")
+target = NodePath("../Snake")
 
 [node name="Vignette" type="CanvasLayer" parent="."]
 
