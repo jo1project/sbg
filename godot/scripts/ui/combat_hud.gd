@@ -2,7 +2,8 @@
 # 照 Flutter client/lib/screens/game_screen.dart：
 #   - 被攻擊：畫面邊緣紅框（DecoratedBox 4dp redAccent）+ 下方紅底「被攻擊了！放開搖桿閃躲」（_DodgeAlert）
 #     + 蛇頭上方閃爍準星（_AttackCrosshairIndicator，Kenney Crosshair Pack CC0，300ms 淡入淡出）
-#   - 命中橫幅：attack_banner.png 從右滑到中央、停留、往左滑出，共 2 秒（_AttackHitBanner）
+#   - 命中橫幅：像素風爆裂圖 + ATTACK（attack_burst.gd 程式產生），彈出 → 3 幀閃爍 → 縮小淡出，共 2 秒
+#     （Flutter _AttackHitBanner 用寫實風圖片從右滑到左；Godot 改成跟地牢場景一致的像素風，見 PARITY.md）
 #   - 失明：只看得到蛇頭和前方 2 格，其餘全黑（board.dart _visible() / _paintBlindMask()）。
 #     3D 場景是斜俯視，所以把這 3 格（含角色高度）投影到螢幕、取凸包，shader 把凸包以外塗黑
 #   - 一次性訊息 3 秒後消失（GameController._setBanner()）
@@ -10,6 +11,7 @@
 extends CanvasLayer
 
 const DP := UiStyle.DP
+const AttackBurst := preload("res://scripts/ui/attack_burst.gd")
 const BLIND_SHADER := """
 shader_type canvas_item;
 uniform vec2 pts[12];
@@ -41,6 +43,7 @@ var _border: Panel
 var _alert: PanelContainer
 var _crosshair: TextureRect
 var _banner: TextureRect
+var _burst: Array[Texture2D] = []   # 爆裂圖 3 幀
 var _msg_panel: PanelContainer
 var _msg: Label
 
@@ -111,8 +114,10 @@ func _ready() -> void:
 	_msg_panel.hide()
 	_root.add_child(_msg_panel)
 
+	_burst = AttackBurst.frames()
 	_banner = TextureRect.new()
-	_banner.texture = _tex("res://assets/sprites/attack_banner.png")
+	_banner.texture = _burst[0]
+	_banner.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # 像素放大不要糊
 	_banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -138,9 +143,9 @@ func _layout() -> void:
 	# 一次性訊息：頂部 HUD（64dp）下面
 	_msg_panel.size = Vector2(ui.x - 2 * 8 * DP, 0)
 	_msg_panel.position = Vector2(8 * DP, inset.y + 72 * DP)
-	# 橫幅：寬度 = 螢幕寬 - 左右 24dp，比例 1000:460
+	# 橫幅：寬度 = 螢幕寬 - 左右 24dp，比例同爆裂圖（160:80）
 	var bw := ui.x - 2 * 24 * DP
-	_banner.size = Vector2(bw, bw * 460.0 / 1000.0)
+	_banner.size = Vector2(bw, bw * float(AttackBurst.H) / AttackBurst.W)
 	_blind_mat.set_shader_parameter("rect_size", ui)
 
 # ---------- 給 game_session 呼叫 ----------
@@ -190,15 +195,29 @@ func _process(delta: float) -> void:
 	if _banner_t >= 0.0:
 		if not _frozen:
 			_banner_t += delta
-		# 0~0.5 秒 右→中（easeOut）、0.5~1.5 停在中央、1.5~2 中→左（easeIn），同 Flutter TweenSequence 25/50/25
-		var x: float
-		if _banner_t < 0.5:
-			x = 1.0 - ease(_banner_t / 0.5, 0.4)
-		elif _banner_t < 1.5:
-			x = 0.0
+		# 0~0.15 秒 從 0.4 倍彈到 1.15 倍、0.15~0.25 回到 1 倍；之後 3 幀輪播（每 0.07 秒換一幀、大小 1.0/1.05 交替）
+		# 做閃爍打擊感；最後 0.3 秒縮小淡出。總長 2 秒 = 命中停頓時間
+		var t := _banner_t
+		var sc := 1.0
+		var alpha := 1.0
+		var frame := 0
+		if t < 0.15:
+			sc = lerpf(0.4, 1.15, ease(t / 0.15, 0.5))
+		elif t < 0.25:
+			sc = lerpf(1.15, 1.0, (t - 0.15) / 0.1)
+		elif t < 1.7:
+			var k := int((t - 0.25) / 0.07)
+			frame = k % _burst.size()
+			sc = 1.05 if k % 2 == 1 else 1.0
 		else:
-			x = -ease((_banner_t - 1.5) / 0.5, 2.4)
-		_banner.position = Vector2((ui.x - _banner.size.x) / 2.0 + x * ui.x, (ui.y - _banner.size.y) / 2.0)
+			var u := clampf((t - 1.7) / 0.3, 0.0, 1.0)
+			sc = lerpf(1.0, 0.6, u)
+			alpha = 1.0 - u
+		_banner.texture = _burst[frame]
+		_banner.pivot_offset = _banner.size / 2.0
+		_banner.scale = Vector2.ONE * sc
+		_banner.modulate.a = alpha
+		_banner.position = (ui - _banner.size) / 2.0
 		if _banner_t >= 2.0:
 			_banner_t = -1.0
 			_banner.hide()

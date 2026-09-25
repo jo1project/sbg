@@ -130,7 +130,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 命中時雙方顯示橫幅 2 秒（規格 4.2 已寫入） | `game_controller.dart` `_triggerAttackHitBanner()`；`game_screen.dart` `_AttackHitBanner` | `ui/combat_hud.gd` `play_hit_banner()`（右→中→左，2 秒；圖 `assets/sprites/attack_banner.png` 跟 Flutter 同一張） | 完成 | H-01 |
+| 命中時雙方顯示橫幅 2 秒（規格 4.2 已寫入） | `game_controller.dart` `_triggerAttackHitBanner()`；`game_screen.dart` `_AttackHitBanner` | `ui/combat_hud.gd` `play_hit_banner()` + `ui/attack_burst.gd`（**Godot 改成像素風**：程式產生的放射狀像素爆裂 #993C1D + 點陣字 ATTACK 金黃 #FAC775／深棕紅描邊，彈出 → 3 幀閃爍 → 縮小淡出，共 2 秒；Flutter 是寫實風圖片由右滑到左） | 完成 | H-01 |
 | 橫幅期間雙方蛇停止移動（規格 4.2 已寫入；斷線凍結時這 2 秒也要暫停） | `game_controller.dart` `_tick()` | `game_session.gd` `_hit_hold`（斷線凍結時不倒數，橫幅動畫也停住） | 完成（**Godot 停頓期間不接受轉向**，Flutter 可以先輸入；跟斷線凍結的處理一致） | H-02 |
 
 ## 11. 對手資訊
