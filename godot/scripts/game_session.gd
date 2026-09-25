@@ -1,8 +1,9 @@
 # 一場對局的流程（對應 Flutter client/lib/game/game_controller.dart 的對戰生命週期）。
 #
 # 模式：
-#   本地單機（預設）：本地食物產生器；3-2-1 倒數後自動往右走；死亡後 1 秒重新倒數。
-#   線上（命令列 --online、環境變數 SBG_ONLINE=1、或勾 online）：連伺服器，按「隨機配對」（或 M 鍵）排隊；
+#   本地單機（debug build 預設）：本地食物產生器；3-2-1 倒數後自動往右走；死亡後 1 秒重新倒數。
+#   線上（release build 預設；debug 用 --online / SBG_ONLINE=1 / 勾 online；強制本地 --local，見 app_config.gd）：
+#     連伺服器，按「隨機配對」（或 M 鍵）排隊；
 #     obstacle_layout → 換地圖；food_spawned → 伺服器食物；match_found → 3-2-1 倒數 → 自動往右走；
 #     每秒 snake_position_update；死亡送 death_report 等 game_over。
 #
@@ -17,6 +18,7 @@ extends Node
 const NetClient := preload("res://scripts/net/net_client.gd")
 const ServerFoodSource := preload("res://scripts/net/server_food_source.gd")
 const Haptics := preload("res://scripts/haptics.gd")
+const AppConfig := preload("res://scripts/app_config.gd")
 
 const COUNTDOWN_S := 3            # 同 Flutter _startPreGameCountdown
 const POSITION_SYNC_S := 1.0      # 同 Flutter _startPositionSync（CONFIG.SNAKE_POSITION_SYNC_MS）
@@ -45,8 +47,8 @@ var _opp_grace_left := -1.0        # 對手斷線寬限倒數（秒），<0 = �
 var _local_restart := -1.0
 
 func _ready() -> void:
-	online = online or "--online" in OS.get_cmdline_user_args() or "--online" in OS.get_cmdline_args() \
-		or OS.get_environment("SBG_ONLINE") == "1"
+	var force_local := "--local" in OS.get_cmdline_user_args() + OS.get_cmdline_args()
+	online = (online or AppConfig.online_default()) and not force_local
 	snake.died.connect(_on_died)
 	overlay.match_pressed.connect(join_queue)
 	if online:
@@ -56,8 +58,12 @@ func _ready() -> void:
 		net.identified.connect(_on_identified)
 		net.message_received.connect(_on_message)
 		net.connection_lost.connect(_on_connection_lost)
+		if net.server_url == "":
+			overlay.show_banner("這個版本沒有設定伺服器網址\n（建置時要用 SERVER_URL 產生 build_config.gd）")
+			overlay.set_status("無法連線")
+			return
 		net.connect_to_server()
-		overlay.set_status("連線中… %s" % net.server_url)
+		overlay.set_status("連線中… %s" % _display_url(net.server_url))
 		snake.set_frozen(false)
 	else:
 		food_manager.use_local_source()
@@ -248,6 +254,12 @@ func _on_message(msg: Dictionary) -> void:
 
 func _update_status() -> void:
 	overlay.set_status("能量 %d · 對手 %s 能量 %d" % [int(my_energy), opponent_id, int(opp_energy)])
+
+# 狀態列不攤開完整網址（正式站網址是建置時帶入的），debug build 例外
+static func _display_url(url: String) -> String:
+	if OS.is_debug_build():
+		return url
+	return url.get_slice("://", 0) + "://…"
 
 static func _pt(c: Vector2i) -> Dictionary:
 	return {"x": c.x, "y": c.y}

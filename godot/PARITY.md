@@ -27,7 +27,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 狀態 | 列數 |
 |---|---|
-| 完成 | 31 |
+| 完成 | 32 |
 | 進行中 | 8 |
 | 未做 | 22 |
 | 已驗證 | 0（還沒跟 Flutter 並排跑手動情境） |
@@ -40,6 +40,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
 | WebSocket 連線、JSON 訊息 `{type, ...欄位}`、伺服器網址可設定 | `net/socket_service.dart`、`config.dart`（`SERVER_URL`） | `net/net_client.gd` | 完成 | C-01 |
+| release build 預設連正式站、網址建置時帶入（不寫在原始碼） | `config.dart` `String.fromEnvironment("SERVER_URL")`＋CI `--dart-define` | `app_config.gd`、`tools/write_build_config.sh`（產生 gitignore 的 `build_config.gd`；release 預設線上模式） | 完成 | C-08 |
 | identify：本地保存 playerId、回報 deviceInfo | `game/game_controller.dart` `bootstrap()` `connectAndIdentify()` `_collectDeviceInfo()` | `net/net_client.gd`（`user://sbg_net.cfg`） | 完成 | C-01、C-02 |
 | 新帳號還原碼只顯示一次、restore_account 找回帳號 | `main.dart` `_RecoveryCodeOverlay`；`game_controller.dart` `restoreAccount()` | — | 未做 | C-03、C-04 |
 | 心跳 ping 每秒一次 | `game_controller.dart` `_startPing()` | `net/net_client.gd` | 完成 | C-05 |

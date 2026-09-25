@@ -3,19 +3,21 @@
 # - 每秒送 ping（伺服器 5 秒沒收到任何訊息就當斷線）；自己這邊 5 秒沒收到任何訊息也當斷線
 # - 斷線後自動重連，用同一個 playerId 送 identify；伺服器在寬限期內會回 reconnected: true
 # - App 切到背景：主動關掉連線（不送 leave_room），讓伺服器立刻進入 10 秒寬限；回到前景自動重連
-# 伺服器網址：命令列 --sbg-server=ws://... > 環境變數 SBG_SERVER_URL > server_url。
+# 伺服器網址：見 app_config.gd（命令列 > 環境變數 > 建置時的 build_config.gd > debug 預設 localhost）。
 extends Node
 
 signal identified(msg: Dictionary)        # identified 訊息（含 reconnected / inRoom / recoveryCode）
 signal message_received(msg: Dictionary)  # 其他所有伺服器訊息
 signal connection_lost                    # 已連上的連線斷掉（或切到背景）
 
+const AppConfig := preload("res://scripts/app_config.gd")
+
 const SAVE_PATH := "user://sbg_net.cfg"
 const PING_INTERVAL := 1.0
 const SILENCE_TIMEOUT := 5.0   # 這麼久沒收到任何訊息（正常每秒有 pong）就當斷線，同伺服器 CONFIG.HEARTBEAT_TIMEOUT_MS
 const RETRY_INTERVAL := 1.0
 
-@export var server_url := "ws://localhost:8080"
+var server_url := ""   # 空字串 = 沒有設定（release build 沒帶 SERVER_URL 建置）
 
 var player_id := ""
 var is_identified := false
@@ -29,19 +31,15 @@ var _silence := 0.0
 var _retry_left := -1.0
 
 func _ready() -> void:
-	server_url = _resolve_url()
+	server_url = AppConfig.server_url()
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) == OK:
 		player_id = cfg.get_value("net", "player_id", "")
 
-func _resolve_url() -> String:
-	for a in OS.get_cmdline_user_args() + OS.get_cmdline_args():
-		if a.begins_with("--sbg-server="):
-			return a.trim_prefix("--sbg-server=")
-	var env := OS.get_environment("SBG_SERVER_URL")
-	return env if env != "" else server_url
-
 func connect_to_server() -> void:
+	if server_url == "":
+		push_error("沒有設定伺服器網址（release build 要用 tools/write_build_config.sh 帶 SERVER_URL 建置）")
+		return
 	_want_connection = true
 	_open()
 

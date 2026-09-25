@@ -36,6 +36,7 @@
 | C-05 | 7.4 心跳 | 面板連線 | 對戰中看伺服器 log／面板 `debug_list` | client 每秒送 ping，伺服器回 pong（RTT 用於閃躲校正，見 D-03） |
 | C-06 | 連線失敗 | 伺服器關掉 | 開 App | 顯示「連線失敗,請檢查網路連線」＋重新連線按鈕；開伺服器後按重新連線可進大廳 |
 | C-07 | 6.2 App 切背景 = 斷線 | NPC 對局中 | 把 App 切到背景（Godot 電腦版按 F5） | client 關閉連線、**不送 leave_room**；伺服器立刻進入 10 秒寬限並凍結整場（NPC 也停止加能量/攻擊）；10 秒內回前景自動重連、對戰繼續（見 D-09）。⚠ Flutter 目前仍是送 leave_room 直接判負，改之前預期不一致 |
+| C-08 | 建置設定 | Godot：① 不產生 build_config.gd 匯出 release ② `SERVER_URL=wss://… godot/tools/write_build_config.sh` 後匯出 release（編輯器裡可用 `-- --sbg-release-defaults` 模擬） | 開 App | ① 直接是線上模式，顯示「這個版本沒有設定伺服器網址」，不會去連 localhost ② 線上模式、自動連正式站；狀態列不攤開完整網址；`git status` 看不到 build_config.gd |
 
 ## M. 配對（規格 8.2、8.3）
 
