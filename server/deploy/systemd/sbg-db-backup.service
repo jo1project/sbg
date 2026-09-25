@@ -1,0 +1,9 @@
+# 貪食蛇伺服器資料庫線上備份(由 sbg-db-backup.timer 每天觸發)。安裝方式見 server/README.md「資料庫自動備份」。
+[Unit]
+Description=Snake battle server SQLite online backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/sbg/server/deploy/backup-db.sh

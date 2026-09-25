@@ -154,7 +154,8 @@ cd /root/sbg
 # 0. 看一下 repo 有沒有別人在 VPS 上直接改、還沒 commit 的檔案(有的話先處理,不要被 pull 蓋掉)
 git status --short
 
-# 1. 部署前備份資料庫(指令見下方「部署前備份資料庫」)
+# 1. 部署前備份資料庫
+/root/sbg/server/deploy/backup-db.sh
 
 # 2. 更新程式碼
 git pull --ff-only
@@ -173,18 +174,36 @@ nsenter -t $(docker inspect -f '{{.State.Pid}}' snake-battle-server) -n ss -tn s
 docker restart snake-battle-server
 ```
 
-### 部署前備份資料庫
+### 備份資料庫
 
-資料庫是 WAL 模式,容器在跑的時候直接 `cp data.sqlite` 會漏掉還在 `-wal` 檔裡的資料,要用 SQLite 的線上備份
-(better-sqlite3 的 `backup()`,在容器裡跑,不用停服務):
+資料庫是 WAL 模式,容器在跑的時候直接 `cp data.sqlite` 會漏掉還在 `-wal` 檔裡的資料,要用 SQLite 的線上備份。
+`deploy/backup-db.sh` 在容器裡用 better-sqlite3 的 `backup()` 做一致的快照(不用停服務),轉成單一檔案、
+跑 `integrity_check`、印出玩家數,存到 `/root/sbg-backups/data.sqlite-YYYYMMDD-HHMM.sqlite`,並刪掉超過 14 天的舊備份。
+部署前手動跑一次:
 
 ```bash
-TS=$(date +%Y%m%d-%H%M)
-docker exec snake-battle-server node -e "
-  const D = require('better-sqlite3');
-  new D('data.sqlite', { readonly: true }).backup('data.sqlite-backup-$TS').then(() =>
-    console.log('備份完成,玩家數', new D('data.sqlite-backup-$TS', { readonly: true }).prepare('select count(*) c from players').get().c));"
-mkdir -p /root/sbg-backups && mv /root/sbg/server/data.sqlite-backup-$TS /root/sbg-backups/data.sqlite-$TS.sqlite
+/root/sbg/server/deploy/backup-db.sh
+```
+
+### 資料庫自動備份(每天 04:30)
+
+systemd timer 每天 04:30(Asia/Taipei)跑 `deploy/backup-db.sh`,保留最近 14 天。unit 檔在 repo 的
+`deploy/systemd/`,安裝(或改了 unit 檔之後重新安裝):
+
+```bash
+cp /root/sbg/server/deploy/systemd/sbg-db-backup.{service,timer} /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now sbg-db-backup.timer
+```
+
+確認有正常執行:
+
+```bash
+systemctl list-timers sbg-db-backup.timer          # 下次/上次執行時間
+systemctl status sbg-db-backup.service --no-pager  # 上次結果(Active: inactive (dead) + status=0/SUCCESS 是正常的)
+journalctl -u sbg-db-backup.service -n 20 --no-pager   # 每次的輸出:「備份完成 integrity_check=ok players=N」
+ls -la /root/sbg-backups/                           # 每天多一個檔、最多約 14 個
+systemctl start sbg-db-backup.service               # 想馬上手動跑一次
 ```
 
 **容器設定有變**(改了 `docker-compose.yml`,或第一次從手動 `docker run` 的容器換成 compose 管理)時,步驟 6 改成:
@@ -235,7 +254,7 @@ docker restart snake-battle-server
 
 ```bash
 docker stop snake-battle-server
-cp /root/sbg-backups/data.sqlite-YYYYMMDD-HHMM.sqlite /root/sbg/server/data.sqlite
+cp /root/sbg-backups/data.sqlite-YYYYMMDD-HHMM.sqlite /root/sbg/server/data.sqlite   # 先用 backup-db.sh 備份現在的
 rm -f /root/sbg/server/data.sqlite-wal /root/sbg/server/data.sqlite-shm
 docker start snake-battle-server
 ```
@@ -248,6 +267,10 @@ docker start snake-battle-server
 snake-server/
 ├── package.json
 ├── docker-compose.yml  # 正式環境容器設定(見「部署到 VPS」)
+├── deploy/
+│   ├── backup-db.sh      # 資料庫線上備份(每天由 systemd timer 執行)
+│   ├── systemd/          # sbg-db-backup.service / .timer
+│   └── nginx.conf.example  # 早期 Nginx 方案,正式環境沒用
 ├── README.md
 ├── .gitignore
 ├── test/               # 情境自動化測試(npm test)
