@@ -138,7 +138,9 @@ SBG_DEBUG_COMMANDS=1 npm start
                                   /root/sbg/server/data.sqlite(玩家 ID / 還原碼)
 ```
 
-- VPS:`173.249.209.149`,SSH 在 **port 2222**(22 沒開),`ssh -p 2222 root@173.249.209.149`
+- VPS:SSH 在 **port 2222**(22 沒開),`ssh -p 2222 root@<VPS IP>`。**VPS 的 IP 不要寫進 repo**(這個 repo 是 public,
+  網域走 Cloudflare 代理,公開 IP 等於讓人繞過 Cloudflare 直接打到主機);建議在自己電腦的 `~/.ssh/config` 設別名:
+  `Host sbg-vps` / `HostName <VPS IP>` / `Port 2222` / `User root`,之後 `ssh sbg-vps` 即可
 - 程式碼:`/root/sbg`(git clone 的 repo),伺服器在 `/root/sbg/server`,容器設定是 `server/docker-compose.yml`
 - Caddy 設定在另一個 compose 專案:`/opt/calendarreminder/Caddyfile`(`my1st123.pp.ua` 區塊裡 `reverse_proxy /snake* snake:9090`),
   跟這台 VPS 上其他服務共用,改之前先確認不會影響別的站
@@ -148,7 +150,7 @@ SBG_DEBUG_COMMANDS=1 npm start
 ### 部署步驟
 
 ```bash
-ssh -p 2222 root@173.249.209.149
+ssh -p 2222 root@<VPS IP>     # 或 ssh sbg-vps
 cd /root/sbg
 
 # 0. 看一下 repo 有沒有別人在 VPS 上直接改、還沒 commit 的檔案(有的話先處理,不要被 pull 蓋掉)
