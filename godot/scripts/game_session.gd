@@ -6,6 +6,8 @@
 #     連伺服器，大廳（ui/lobby_screen.gd）按「開始配對」（或 M 鍵）排隊；結束後顯示結算畫面（ui/result_screen.gd）；
 #     obstacle_layout → 換地圖；food_spawned → 伺服器食物；match_found → 3-2-1 倒數 → 自動往右走；
 #     每秒 snake_position_update；死亡送 death_report 等 game_over。
+#     攻擊：攻擊鈕送 attack_request（等結果期間按鈕變灰）；attack_incoming → 閃避視窗（紅框、準星、震動），放開搖桿送 dodge_attempt；
+#     attack_result → 命中時雙方停 2 秒 + 橫幅，直接攻擊防守方變長、隨機效果預告 1 秒後生效（加速/暫停/失明）。
 #
 # 斷線與重連（規格 6.2，照規格不照 Flutter）：
 #   - 自己斷線（含切背景）：立刻凍結自己的蛇、顯示「連線中斷,重新連線中...」；net_client 自動重連，
@@ -32,6 +34,8 @@ enum State { LOBBY, QUEUE, COUNTDOWN, PLAYING, DEAD, OVER }
 @export var overlay: CanvasLayer     # ui/status_overlay.gd
 @export var result_screen: CanvasLayer   # ui/result_screen.gd（結算畫面）
 @export var lobby: CanvasLayer           # ui/lobby_screen.gd（大廳，只有線上模式）
+@export var touch_controls: CanvasLayer  # ui/touch_controls.gd（攻擊鈕、放開搖桿閃避）
+@export var combat_hud: CanvasLayer      # ui/combat_hud.gd（被攻擊警示、命中橫幅、失明、一次性訊息）
 @export var online := false
 
 var net: Node
@@ -48,6 +52,25 @@ var _self_lost := false            # 自己斷線中
 var _opp_grace_left := -1.0        # 對手斷線寬限倒數（秒），<0 = 沒有
 var _local_restart := -1.0
 
+# 攻擊與閃避（同 Flutter game_controller.dart；計時都用 _process 的 delta，斷線凍結時不推進）
+const HIT_HOLD_S := 2.0            # 命中橫幅期間雙方停住（Flutter _triggerAttackHitBanner 2000ms）
+const EFFECT_NAMES := {"speedup": "加速", "pause": "暫停", "blind": "失明"}
+const REJECT_REASONS := {
+	"attacker_paused": "你正在暫停中",
+	"attack_in_progress": "上一次攻擊還沒結算",
+	"target_effect_active": "對手正受到效果影響",
+	"no_energy": "能量不足",
+	"match_paused": "對局暫停中",
+}
+var _attack_pending := false       # 送出 attack_request、還沒收到結果（Flutter pendingOutgoingAttack）
+var _attacker_by_id := {}          # attackId -> attackerId
+var _incoming_id := ""             # 正在被攻擊（閃避視窗中）的 attackId（Flutter incomingAttack）
+var _incoming_left := 0.0          # 閃避提示還要顯示多久（視窗 + 0.1 秒）
+var _effect := ""                  # 自己身上的效果：speedup / pause / blind（Flutter myEffect）
+var _effect_left := 0.0
+var _pending_effects: Array = []   # 預告中、還沒生效的效果 [{type, delay, duration}]
+var _hit_hold := 0.0               # 命中停頓剩餘秒數
+
 func _ready() -> void:
 	var force_local := "--local" in OS.get_cmdline_user_args() + OS.get_cmdline_args()
 	online = (online or AppConfig.online_default()) and not force_local
@@ -55,6 +78,8 @@ func _ready() -> void:
 	lobby.start_pressed.connect(join_queue)
 	result_screen.rematch_pressed.connect(join_queue)
 	result_screen.lobby_pressed.connect(_to_lobby)
+	touch_controls.attack_requested.connect(attack)
+	touch_controls.dodge_requested.connect(try_dodge)
 	if online:
 		net = NetClient.new()
 		net.name = "Net"
@@ -88,6 +113,7 @@ func _process(delta: float) -> void:
 			_begin_countdown()
 	if _is_frozen():
 		return
+	_tick_combat(delta)
 	match state:
 		State.COUNTDOWN:
 			_countdown_left -= delta
@@ -122,9 +148,113 @@ func _begin_countdown() -> void:
 	overlay.set_countdown(COUNTDOWN_S)
 
 func _apply_freeze() -> void:
-	snake.set_frozen(_is_frozen())
+	_sync_snake()
+	combat_hud.hold(_is_frozen())
 	if not _is_frozen():
 		overlay.hide_banner()
+
+# 蛇停住的原因：斷線凍結、對局結束、暫停效果、命中停頓（Flutter _tick() 的 isPaused / _frozenByDisconnect / showAttackHitBanner）
+func _sync_snake() -> void:
+	snake.set_frozen(_is_frozen() or state == State.OVER or _effect == "pause" or _hit_hold > 0.0)
+	snake.set_speedup(_effect == "speedup")
+	combat_hud.set_blind(_effect == "blind")
+	touch_controls.set_attack_enabled(not _attack_pending)
+
+# ---------- 攻擊與閃避 ----------
+
+func attack(attack_type: String) -> void:
+	if not online:
+		combat_hud.show_message("本地模式沒有對手，攻擊要在線上對戰才有作用")
+		return
+	if state != State.PLAYING or _attack_pending or _effect == "pause":
+		return
+	_attack_pending = true
+	net.send("attack_request", {"attackType": attack_type, "clientTime": _now_ms()})
+	_sync_snake()
+
+# 放開搖桿：正在被攻擊才送 dodge_attempt（同 Flutter tryDodge）
+func try_dodge() -> void:
+	if _incoming_id == "":
+		return
+	net.send("dodge_attempt", {"attackId": _incoming_id, "clientActionTime": _now_ms()})
+	_set_incoming("")
+
+func _set_incoming(attack_id: String, window_s := 0.0) -> void:
+	_incoming_id = attack_id
+	_incoming_left = window_s + 0.1
+	combat_hud.set_incoming(attack_id != "")
+
+func _on_attack_result(msg: Dictionary) -> void:
+	var attack_id := str(msg.get("attackId", ""))
+	var attacker = _attacker_by_id.get(attack_id)
+	_attacker_by_id.erase(attack_id)
+	var i_attacked: bool = attacker == net.player_id
+	var i_defended: bool = attacker != null and not i_attacked
+	if i_attacked:
+		_attack_pending = false
+	_set_incoming("")
+	if msg.get("dodged", false):
+		combat_hud.show_message("對方閃躲成功" if i_attacked else "閃躲成功!")
+		_sync_snake()
+		return
+	# 命中：雙方都播橫幅並停住 2 秒
+	_hit_hold = HIT_HOLD_S
+	combat_hud.play_hit_banner()
+	var effect_type := str(msg.get("effectType", ""))
+	if effect_type == "direct_lengthen":
+		if i_defended:
+			snake.grow(int(msg.get("lengthenBy", 0)))
+		combat_hud.show_message("命中!對手變長了" if i_attacked else "被直接攻擊命中,身體變長了")
+	else:
+		# 隨機效果：預告 previewDelayMs 後才生效，只套在防守方
+		var name: String = EFFECT_NAMES.get(effect_type, effect_type)
+		combat_hud.show_message(("命中!對手即將受到「%s」效果" if i_attacked else "即將發動:「%s」效果") % name)
+		if i_defended and effect_type != "":
+			_pending_effects.append({
+				"type": effect_type,
+				"delay": float(msg.get("previewDelayMs", 0)) / 1000.0,
+				"duration": float(msg.get("effectDuration", 0)) / 1000.0,
+			})
+	_sync_snake()
+
+func _set_effect(type: String, secs: float) -> void:
+	_effect = type
+	_effect_left = secs
+	_sync_snake()
+
+# 每幀推進攻擊相關計時（斷線凍結時 _process 不會呼叫這裡）
+func _tick_combat(delta: float) -> void:
+	if _incoming_id != "":
+		_incoming_left -= delta
+		if _incoming_left <= 0.0:
+			_set_incoming("")
+	for pe in _pending_effects.duplicate():
+		pe["delay"] -= delta
+		if pe["delay"] <= 0.0:
+			_pending_effects.erase(pe)
+			_set_effect(pe["type"], pe["duration"])
+	if _effect != "":
+		_effect_left -= delta
+		if _effect_left <= 0.0:
+			_set_effect("", 0.0)
+	if _hit_hold > 0.0:
+		_hit_hold = maxf(0.0, _hit_hold - delta)
+	_sync_snake()
+
+# 開局、結束、回大廳時清掉（Flutter _startMatch 的重設）
+func _reset_combat() -> void:
+	_attack_pending = false
+	_attacker_by_id.clear()
+	_set_incoming("")
+	_effect = ""
+	_effect_left = 0.0
+	_pending_effects.clear()
+	_hit_hold = 0.0
+	combat_hud.clear()
+	_sync_snake()
+
+static func _now_ms() -> int:
+	return int(Time.get_unix_time_from_system() * 1000.0)
 
 # ---------- 本地模式 ----------
 func _on_died(cause: String, head: Vector2i, body: Array) -> void:
@@ -199,6 +329,7 @@ func _to_lobby(notice := "") -> void:
 	overlay.hide_banner()
 	overlay.set_status("")
 	result_screen.hide()
+	_reset_combat()
 	lobby.set_ready(net.is_identified, notice)
 	lobby.show()
 
@@ -223,9 +354,10 @@ func _on_message(msg: Dictionary) -> void:
 			lobby.hide()
 			_self_lost = false
 			_opp_grace_left = -1.0
+			_begin_countdown()
+			_reset_combat()
 			_apply_freeze()   # 上一場 game_over 時凍結的蛇要解開
 			_update_status()
-			_begin_countdown()
 		"energy_update":
 			if msg.playerId == net.player_id:
 				my_energy = msg.energy
@@ -233,9 +365,24 @@ func _on_message(msg: Dictionary) -> void:
 				opp_energy = msg.energy
 			_update_status()
 		"attack_incoming":
-			if msg.attackerId != net.player_id:
+			# 斷線恢復時伺服器會重送同一個 attackId（resumed: true），一樣重新開始閃避視窗
+			var attack_id := str(msg.get("attackId", ""))
+			_attacker_by_id[attack_id] = str(msg.get("attackerId", ""))
+			if msg.get("attackerId") != net.player_id:
+				_set_incoming(attack_id, float(msg.get("dodgeWindowMs", 1000)) / 1000.0)
 				Haptics.heavy_impact()   # 同 Flutter HapticFeedback.heavyImpact()（規格 9.3）
-				print("[attack] 被攻擊了（%s）" % msg.attackType)
+		"attack_result":
+			_on_attack_result(msg)
+		"attack_rejected":
+			_attack_pending = false
+			var reason := str(msg.get("reason", ""))
+			combat_hud.show_message("攻擊未成立:%s" % REJECT_REASONS.get(reason, reason))
+			_sync_snake()
+		"self_paused_by_spam":
+			# 連續被閃躲 3 次的反噬：自己立刻暫停（規格 4.4）
+			var ms := int(msg.get("durationMs", 3000))
+			_set_effect("pause", ms / 1000.0)
+			combat_hud.show_message("連續被閃躲,自己暫停%d秒" % roundi(ms / 1000.0))
 		"opponent_disconnected":
 			if _in_match():
 				_opp_grace_left = float(msg.get("graceMs", 10000)) / 1000.0
@@ -256,11 +403,10 @@ func _on_message(msg: Dictionary) -> void:
 			overlay.hide_banner()
 			overlay.set_countdown(0)
 			state = State.OVER
+			_reset_combat()
 			_show_result(msg)
 		"match_waiting":
 			pass
-		"attack_rejected":
-			print("[attack] 攻擊未成立: %s" % msg.get("reason"))
 
 # 結算畫面：伺服器 game_over { reason, winnerId, draw, stats: { [playerId]: { gems, survivalMs, maxLength } } }
 func _show_result(msg: Dictionary) -> void:

@@ -1,6 +1,7 @@
 # 玩家的蛇（角色隊伍）。邏輯照 Flutter client/lib/game/game_controller.dart 的 _tick() 與 collision.dart：
 # 每 step_time 秒前進一格；撞牆/虛空、撞自己、撞障礙物就發出 died 並停下（本地模式由 game_session 重新開始，
-# 線上模式送 death_report 等伺服器判定）。吃寶石不會變長（Flutter 也是）。
+# 線上模式送 death_report 等伺服器判定）。吃寶石不會變長（Flutter 也是）；被直接攻擊命中才會變長（grow()）。
+# 效果：加速（set_speedup，每格 160ms，同 Flutter speedupTickMs）；暫停、命中停頓由 game_session 用 set_frozen() 控制。
 # 開局（3-2-1 倒數）、凍結（斷線寬限期間）由 game_session.gd 控制：reset_to() → start()、set_frozen()。
 #
 # 輸入：轉向輸入先排進佇列，每個格子步進取一個套用（一格內快速按「上再右」會分兩步依序轉，不會只留最後一個）。
@@ -22,7 +23,8 @@ signal turned(dir: Vector2i)          # 格子邏輯真正換方向的那一步�
 const QUEUE_MAX := 3               # 最多排幾個轉向，避免按太多累積成很久以前的操作
 
 @export var segment_count := 4                 # 含蛇頭，同 Flutter GameConfig.initialSnakeLength
-@export var step_time := 0.325                 # 每格秒數，同 Flutter GameConfig.moveTickMs（加速效果是 160ms，之後接）
+@export var step_time := 0.325                 # 每格秒數，同 Flutter GameConfig.moveTickMs
+@export var speedup_step_time := 0.16          # 加速效果時的每格秒數，同 Flutter GameConfig.speedupTickMs
 @export var camera: Camera3D                   # 角色面向以它的 Y 軸旋轉為準
 @export_file("*.png") var head_sheet := "res://assets/sprites/hero.png"
 @export_file("*.png") var body_sheet := "res://assets/sprites/goblin.png"
@@ -41,6 +43,10 @@ var _t := 0.0                      # 這一步的進度 0~1
 var _chars: Array = []             # [0] = 蛇頭
 var _dbg_vis := Vector2i.ZERO      # 等著印「畫面開始轉向」的方向
 var _dbg_face := -1                # 等著印「蛇頭圖換面向」的方向編號
+var _growth := 0                   # 還要長幾節（直接攻擊命中，同 Flutter _growthPending）
+var _step := 0.325                 # 目前每格秒數（加速時變短）
+var _body_frames: SpriteFrames
+var _rows: Array
 
 # 由 chunk_manager 在本節點 _ready 之前呼叫
 func set_map(m: MapLoader) -> void:
@@ -53,15 +59,20 @@ func _ready() -> void:
 	var fps := 2.0 / step_time       # 走路 4 幀 = 走 2 格
 	var rows := CharacterSprites.ROWS_8DIR
 	var head_frames := CharacterSprites.build(head_sheet, rows, fps)
-	var body_frames := CharacterSprites.build(body_sheet, rows, fps) if segment_count > 1 else null
+	_body_frames = CharacterSprites.build(body_sheet, rows, fps)
+	_rows = rows
 	for i in segment_count:
-		var ch: AnimatedSprite3D = SnakeCharacter.new()
-		ch.name = "Head" if i == 0 else "Body_%d" % i
-		ch.top_level = true
-		add_child(ch)
-		ch.setup(head_frames if i == 0 else body_frames, rows, 1.0 / step_time)
-		_chars.append(ch)
+		_add_char(head_frames if i == 0 else _body_frames)
 	_reset()
+
+func _add_char(frames: SpriteFrames) -> AnimatedSprite3D:
+	var ch: AnimatedSprite3D = SnakeCharacter.new()
+	ch.name = "Head" if _chars.is_empty() else "Body_%d" % _chars.size()
+	ch.top_level = true
+	add_child(ch)
+	ch.setup(frames, _rows, 1.0 / step_time)
+	_chars.append(ch)
+	return ch
 
 # 開局/重生：蛇頭在 cell，身體往左排開、面向右（同 Flutter _startMatch），停著等 start()
 func reset_to(cell: Vector2i) -> void:
@@ -75,6 +86,13 @@ func start() -> void:
 func set_frozen(on: bool) -> void:
 	frozen = on
 
+# 直接攻擊命中：之後每走一步多長一節（尾巴留在原地），同 Flutter _growthPending
+func grow(n: int) -> void:
+	_growth += n
+
+func set_speedup(on: bool) -> void:
+	_step = speedup_step_time if on else step_time
+
 func is_moving() -> bool:
 	return _started
 
@@ -82,6 +100,11 @@ func _reset() -> void:
 	dir = Vector2i.RIGHT
 	_queue.clear()
 	_started = false
+	_growth = 0
+	_step = step_time
+	# 上一場被攻擊長出來的節數拿掉
+	while _chars.size() > segment_count:
+		_chars.pop_back().queue_free()
 	_t = 0.0
 	_body.clear()
 	for i in segment_count:
@@ -111,7 +134,7 @@ func _process(delta: float) -> void:
 	if frozen:
 		return
 	if _started:
-		_t += delta / step_time
+		_t += delta / _step
 		while _t >= 1.0:
 			_t -= 1.0
 			if not _tick():
@@ -133,7 +156,8 @@ func _tick() -> bool:
 	if not _queue.is_empty():
 		nd = _queue.pop_front()
 	var new_head := _body[0] + nd
-	var cause := _death_cause(new_head)
+	var grow_now := _growth > 0
+	var cause := _death_cause(new_head, grow_now)
 	if cause != "":
 		print("死亡: %s @ %s" % [cause, new_head])
 		_started = false
@@ -148,18 +172,26 @@ func _tick() -> bool:
 	dir = nd
 	_prev = _body.duplicate()
 	_body.push_front(new_head)
-	_body.pop_back()
+	if grow_now:
+		# 尾巴不動、多一節：新的最後一節從舊尾巴的位置開始（原地不動）
+		_growth -= 1
+		_prev.append(_prev.back())
+		var tail_facing: int = _chars[-1].dir
+		_add_char(_body_frames).place(_cell_pos(_body.back()), tail_facing)
+	else:
+		_body.pop_back()
 	head_arrived.emit(new_head)
 	return true
 
-# 同 Flutter collision.dart checkDeath()（grow=false：尾巴這一格會讓出來，不算撞到自己）
-func _death_cause(new_head: Vector2i) -> String:
+# 同 Flutter collision.dart checkDeath()（grow=false：尾巴這一格會讓出來，不算撞到自己；grow=true：尾巴不動，撞到也算）
+func _death_cause(new_head: Vector2i, grow := false) -> String:
 	if map:
 		var out_of_bounds := new_head.x < 0 or new_head.x >= map.cols or new_head.y < 0 or new_head.y >= map.rows
 		if out_of_bounds or not map.is_floor(new_head):
 			return "wall"
 	var body := _body.duplicate()
-	body.pop_back()
+	if not grow:
+		body.pop_back()
 	if new_head in body:
 		return "self"
 	if map:

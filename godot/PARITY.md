@@ -96,42 +96,42 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 兩顆攻擊按鈕：點擊發動、長按顯示說明、放開不發動 | `widgets/attack_button.dart`；`game_screen.dart` `_BottomBelt` | `ui/attack_button.gd`、`ui/touch_controls.gd`（J/K 鍵），目前只 print | 進行中 | A-01 |
-| 送 attack_request，等結果期間按鈕 disabled（不在本地先扣能量，規格 7.5 已改） | `game_controller.dart` `attack()`、`pendingOutgoingAttack` | — | 未做 | A-02、A-08 |
-| attack_rejected 顯示原因（含新的 match_paused） | `game_controller.dart` `_onMessage()` | `game_session.gd`（只 print） | 進行中 | A-05 ～ A-08、D-07 |
-| 直接攻擊命中 → 防守方變長 | `game_controller.dart` `_handleAttackResult()` `_growthPending` | — | 未做 | A-03 |
-| 能量封頂 10、超過保留 | 伺服器 `room.js`、`player.js` | — | 未做 | EN-02、EN-03 |
+| 兩顆攻擊按鈕：點擊發動、長按顯示說明、放開不發動 | `widgets/attack_button.dart`；`game_screen.dart` `_BottomBelt` | `ui/attack_button.gd`、`ui/touch_controls.gd`（J/K 鍵）→ `attack_requested` 訊號 | 完成 | A-01 |
+| 送 attack_request，等結果期間按鈕 disabled（不在本地先扣能量，規格 7.5 已改） | `game_controller.dart` `attack()`、`pendingOutgoingAttack` | `game_session.gd` `attack()`、`_attack_pending`、`touch_controls.gd` `set_attack_enabled()` | 完成（Godot 另外擋「不在 PLAYING 狀態」，開局倒數中按了不送） | A-02、A-08 |
+| attack_rejected 顯示原因（含新的 match_paused） | `game_controller.dart` `_onMessage()` | `game_session.gd` `REJECT_REASONS`、`ui/combat_hud.gd` `show_message()` | 完成（**Godot 把 reason 翻成中文**，Flutter 顯示原始英文代碼） | A-05 ～ A-08、D-07 |
+| 直接攻擊命中 → 防守方變長 | `game_controller.dart` `_handleAttackResult()` `_growthPending` | `snake_train.gd` `grow()`（每步多一節，尾巴留在原地） | 完成 | A-03 |
+| 能量封頂 10、超過保留 | 伺服器 `room.js`、`player.js` | 同左（伺服器） | 完成（伺服器端） | EN-02、EN-03 |
 
 ## 7. 閃避
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
 | 被攻擊震動（heavy impact，規格 9.3 已改成要震動） | `game_controller.dart`（`HapticFeedback.heavyImpact()`） | `haptics.gd` `heavy_impact()`（`Input.vibrate_handheld(40ms, 最大強度)`），`game_session.gd` 收到 attack_incoming 時呼叫 | 完成（電腦上只 print；Android 匯出要勾 VIBRATE 權限） | D-01 |
-| attack_incoming 警示：紅框 + 準星 + 文字 | `game_screen.dart` `_DodgeAlert` `_AttackCrosshairIndicator` | — | 未做 | D-01 |
-| 放開搖桿 = 閃避（送 dodge_attempt） | `widgets/joystick.dart` `onRelease`；`game_controller.dart` `tryDodge()` | `ui/touch_controls.gd` `_on_joystick_released()`（空的 hook） | 進行中 | D-02 |
-| 閃避結果訊息 | `game_controller.dart` `_handleAttackResult()` | — | 未做 | D-02、D-03 |
+| attack_incoming 警示：紅框 + 準星 + 文字 | `game_screen.dart` `_DodgeAlert` `_AttackCrosshairIndicator` | `ui/combat_hud.gd` `set_incoming()`（準星投影到 3D 蛇頭上方；斷線恢復重送的 attack_incoming 同樣重新顯示） | 完成 | D-01 |
+| 放開搖桿 = 閃避（送 dodge_attempt） | `widgets/joystick.dart` `onRelease`；`game_controller.dart` `tryDodge()` | `ui/touch_controls.gd` `dodge_requested` → `game_session.gd` `try_dodge()`（電腦：空白鍵） | 完成 | D-02 |
+| 閃避結果訊息 | `game_controller.dart` `_handleAttackResult()` | `game_session.gd` `_on_attack_result()`、`combat_hud.gd` `show_message()`（3 秒） | 完成 | D-02、D-03 |
 
 ## 8. 三種負面效果
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 效果在 previewDelayMs 後生效，持續 effectDuration | `game_controller.dart` `_handleAttackResult()` | — | 未做 | E-01 |
-| 加速 160ms/格 | `config.dart` `speedupTickMs`；`_tick()` | — | 未做 | E-02 |
-| 暫停：不動、不能轉向、不能攻擊 | `game_controller.dart` `isPaused` | —（`snake_train.gd` 有凍結機制可沿用） | 未做 | E-03、E-04 |
-| 失明：只看得到蛇頭和前方 2 格 | `widgets/board.dart` `_visible()` `_paintBlindMask()` | — | 未做 | E-05 |
+| 效果在 previewDelayMs 後生效，持續 effectDuration | `game_controller.dart` `_handleAttackResult()` | `game_session.gd` `_pending_effects`、`_tick_combat()`（斷線凍結時不倒數，跟伺服器延長 endsAt 一致） | 完成（**效果名稱翻成中文**：加速／暫停／失明） | E-01 |
+| 加速 160ms/格 | `config.dart` `speedupTickMs`；`_tick()` | `snake_train.gd` `set_speedup()` | 完成 | E-02 |
+| 暫停：不動、不能轉向、不能攻擊 | `game_controller.dart` `isPaused` | `game_session.gd` `_sync_snake()`（`snake.set_frozen()`）、`attack()` | 完成 | E-03、E-04 |
+| 失明：只看得到蛇頭和前方 2 格 | `widgets/board.dart` `_visible()` `_paintBlindMask()` | `ui/combat_hud.gd` `_update_blind()`：3 格（含角色高度）投影到螢幕取凸包，shader 把外面塗黑（邊緣柔化） | 完成 | E-05 |
 
 ## 9. 防騷擾懲罰
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 被同一對手閃避累計 3 次 → 自己暫停 3 秒（觸發當下計數歸零，規格 4.4 已改） | 伺服器 `room.js` `registerDodgeSuccess()`；`game_controller.dart` | — | 未做 | P-01 ～ P-03 |
+| 被同一對手閃避累計 3 次 → 自己暫停 3 秒（觸發當下計數歸零，規格 4.4 已改） | 伺服器 `room.js` `registerDodgeSuccess()`；`game_controller.dart` | `game_session.gd`（`self_paused_by_spam` → 暫停效果 + 訊息） | 完成 | P-01 ～ P-03 |
 
 ## 10. 攻擊命中橫幅與停頓
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 命中時雙方顯示橫幅 2 秒（規格 4.2 已寫入） | `game_controller.dart` `_triggerAttackHitBanner()`；`game_screen.dart` `_AttackHitBanner` | — | 未做 | H-01 |
-| 橫幅期間雙方蛇停止移動（規格 4.2 已寫入；斷線凍結時這 2 秒也要暫停） | `game_controller.dart` `_tick()` | —（`snake_train.gd` `set_frozen()` 可沿用） | 未做 | H-02 |
+| 命中時雙方顯示橫幅 2 秒（規格 4.2 已寫入） | `game_controller.dart` `_triggerAttackHitBanner()`；`game_screen.dart` `_AttackHitBanner` | `ui/combat_hud.gd` `play_hit_banner()`（右→中→左，2 秒；圖 `assets/sprites/attack_banner.png` 跟 Flutter 同一張） | 完成 | H-01 |
+| 橫幅期間雙方蛇停止移動（規格 4.2 已寫入；斷線凍結時這 2 秒也要暫停） | `game_controller.dart` `_tick()` | `game_session.gd` `_hit_hold`（斷線凍結時不倒數，橫幅動畫也停住） | 完成（**Godot 停頓期間不接受轉向**，Flutter 可以先輸入；跟斷線凍結的處理一致） | H-02 |
 
 ## 11. 對手資訊
 

@@ -9,11 +9,14 @@
 #
 # 安全區域：手機上讀 DisplayServer.get_display_safe_area()；電腦沒有安全區域，勾 simulate_iphone_safe_area
 # （或執行中按 F2）模擬 iPhone 15 直向的上 59pt / 下 34pt，並畫出動態島和底部滑動條，看得到被擋住的範圍。
-# 電腦測試：滑鼠（emulate_touch_from_mouse）操作搖桿/按鈕，或鍵盤 WASD/方向鍵轉向、J/K 攻擊。
+# 電腦測試：滑鼠（emulate_touch_from_mouse）操作搖桿/按鈕，或鍵盤 WASD/方向鍵轉向、J/K 攻擊、空白鍵閃避（= 放開搖桿）。
 extends CanvasLayer
 
 const Joystick := preload("res://scripts/ui/joystick.gd")
 const AttackButton := preload("res://scripts/ui/attack_button.gd")
+
+signal attack_requested(attack_type: String)   # "direct" / "random"，game_session 送 attack_request
+signal dodge_requested                          # 放開搖桿（同 Flutter Joystick.onRelease → tryDodge）
 
 const REF_WIDTH_DP := 412.0   # 直向手機的參考寬度（dp）
 const BASE_WIDTH := 1080.0    # 專案基準寬度（project.godot viewport_width）
@@ -152,6 +155,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_attack("direct")
 		KEY_K:
 			_attack("random")
+		KEY_SPACE:
+			_on_joystick_released()
 		KEY_F2:
 			simulate_iphone_safe_area = not simulate_iphone_safe_area
 			print("模擬 iPhone 安全區域: ", simulate_iphone_safe_area)
@@ -165,10 +170,17 @@ func _on_direction(d: Vector2i) -> void:
 	if snake:
 		snake.set_direction(d)
 
-# Flutter 放開搖桿 = 嘗試閃躲（只有正在被攻擊時才會送 dodge_attempt，其他時候是 no-op）。還沒接伺服器，先不做事。
+# Flutter 放開搖桿 = 嘗試閃躲（game_session 只在正在被攻擊時才送 dodge_attempt，其他時候是 no-op）
 func _on_joystick_released() -> void:
-	pass
+	dodge_requested.emit()
 
-# 還沒接伺服器：只印出按了哪個攻擊。之後改成送 attack_request { attackType, clientTime }
 func _attack(attack_type: String) -> void:
-	print("攻擊: %s" % attack_type)
+	if not _btn_direct.disabled:
+		attack_requested.emit(attack_type)
+
+# 等攻擊結果期間兩顆按鈕變灰（同 Flutter disabled: c.pendingOutgoingAttack）
+func set_attack_enabled(on: bool) -> void:
+	for b in [_btn_direct, _btn_random]:
+		if b.disabled == on:
+			b.disabled = not on
+			b.queue_redraw()

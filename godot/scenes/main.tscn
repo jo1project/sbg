@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/snake_train.gd" id="2"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/debug/perf_overlay.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/ui/result_screen.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/ui/lobby_screen.gd" id="12"]
+[ext_resource type="Script" path="res://scripts/ui/combat_hud.gd" id="13"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -84,6 +85,11 @@ script = ExtResource("7")
 script = ExtResource("8")
 touch_controls = NodePath("../TouchControls")
 
+[node name="CombatHud" type="CanvasLayer" parent="." node_paths=PackedStringArray("snake", "camera")]
+script = ExtResource("13")
+snake = NodePath("../Snake")
+camera = NodePath("../Camera3D")
+
 [node name="ResultScreen" type="CanvasLayer" parent="."]
 script = ExtResource("11")
 
@@ -91,7 +97,7 @@ script = ExtResource("11")
 script = ExtResource("12")
 touch_controls = NodePath("../TouchControls")
 
-[node name="Session" type="Node" parent="." node_paths=PackedStringArray("snake", "chunk_manager", "food_manager", "overlay", "result_screen", "lobby")]
+[node name="Session" type="Node" parent="." node_paths=PackedStringArray("snake", "chunk_manager", "food_manager", "overlay", "result_screen", "lobby", "touch_controls", "combat_hud")]
 script = ExtResource("9")
 snake = NodePath("../Snake")
 chunk_manager = NodePath("../ChunkManager")
@@ -99,6 +105,8 @@ food_manager = NodePath("../FoodManager")
 overlay = NodePath("../StatusOverlay")
 result_screen = NodePath("../ResultScreen")
 lobby = NodePath("../Lobby")
+touch_controls = NodePath("../TouchControls")
+combat_hud = NodePath("../CombatHud")
 
 [node name="PerfOverlay" type="CanvasLayer" parent="." node_paths=PackedStringArray("world_environment", "moonlight")]
 script = ExtResource("10")
