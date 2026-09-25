@@ -3,3 +3,8 @@
 # 建置時產生(tools/write_build_config.sh),含正式站網址,不進版控(repo 是 public)
 build_config.gd
 build_config.gd.uid
+
+# Apple 描述檔/憑證不進版控(用 repo secret)
+*.mobileprovision
+*.p12
+*.cer

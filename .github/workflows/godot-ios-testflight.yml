@@ -1,0 +1,216 @@
+name: Godot iOS TestFlight
+
+# Godot 版(godot/)→ TestFlight,App 是 com.sbg.snakeBattle.hd2d(跟 Flutter 版分開的 App)。
+# 手動觸發;upload 預設 false = 只建置到 .ipa、不上傳(先確認能建置成功再上傳)。
+# 需要的 secrets:跟 Flutter 版共用 IOS_DIST_CERTIFICATE_P12_BASE64 / IOS_DIST_CERTIFICATE_PASSWORD /
+# APPSTORE_ISSUER_ID / APPSTORE_API_KEY_ID / APPSTORE_API_PRIVATE_KEY / SERVER_URL,
+# 另外 IOS_GODOT_PROVISIONING_PROFILE_BASE64(hd2d 的 App Store 描述檔)。
+# 流程:Godot 只產生 Xcode 專案(export_project_only),簽章/archive/匯出 .ipa 用跟 Flutter 版一樣的手動簽章 xcodebuild。
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "建置成功後上傳到 TestFlight"
+        type: boolean
+        default: false
+
+env:
+  GODOT_VERSION: "4.7.2"
+  BUNDLE_ID: com.sbg.snakeBattle.hd2d
+  APP_NAME: SnakeHD
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 選用最新版 Xcode(App Store Connect 要求 Xcode 26 以上的 SDK)
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: 快取 Godot 與匯出樣板
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-bin
+            ~/Library/Application Support/Godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          key: godot-${{ env.GODOT_VERSION }}-macos-ios-templates
+
+      - name: 下載 Godot ${{ env.GODOT_VERSION }} 與匯出樣板(約 1.2GB,有快取就跳過)
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p ~/godot-bin
+          curl -fsSL -o /tmp/godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          unzip -q /tmp/godot.zip -d ~/godot-bin
+          curl -fsSL -o /tmp/templates.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$TPL_DIR"
+          unzip -q /tmp/templates.tpz -d /tmp/tpl
+          # 只留 iOS 需要的,減少快取大小
+          cp /tmp/tpl/templates/version.txt "$TPL_DIR/"
+          cp /tmp/tpl/templates/ios.zip "$TPL_DIR/"
+          ls -la "$TPL_DIR"
+
+      - name: Godot 路徑
+        run: |
+          echo "GODOT=$HOME/godot-bin/Godot.app/Contents/MacOS/Godot" >> "$GITHUB_ENV"
+          "$HOME/godot-bin/Godot.app/Contents/MacOS/Godot" --version
+
+      - name: 產生 build_config.gd(正式站網址,release build 預設連線模式)
+        env:
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+        run: godot/tools/write_build_config.sh
+
+      - name: 匯入 Distribution 憑證到暫時 keychain
+        env:
+          P12_BASE64: ${{ secrets.IOS_DIST_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}
+        run: |
+          set -e
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          rm "$RUNNER_TEMP/cert.p12"
+
+      - name: 安裝描述檔,讀出 Team ID / 名稱 / UUID,確認 Bundle ID
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_GODOT_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -e
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/godot.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/godot.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
+          cp "$RUNNER_TEMP/godot.mobileprovision" "$PROFILE_DIR/$UUID.mobileprovision"
+          APPID=$(/usr/libexec/PlistBuddy -c 'Print Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")
+          TEAM=$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          if [ "$APPID" != "$TEAM.$BUNDLE_ID" ]; then
+            echo "::error::描述檔的 App ID 是 $APPID,不是 $TEAM.$BUNDLE_ID"; exit 1
+          fi
+          echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
+          echo "PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")" >> "$GITHUB_ENV"
+          echo "TEAM_ID=$TEAM" >> "$GITHUB_ENV"
+
+      - name: 產生 iOS export preset(簽章資訊不進版控,在這裡產生)
+        run: |
+          cat > godot/export_presets.cfg <<CFG
+          [preset.0]
+
+          name="iOS"
+          platform="iOS"
+          runnable=true
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter="*.md, tools/*"
+          export_path="../build/ios/${APP_NAME}.ipa"
+          script_export_mode=2
+
+          [preset.0.options]
+
+          custom_template/debug=""
+          custom_template/release=""
+          architectures/arm64=true
+          application/app_store_team_id="${TEAM_ID}"
+          application/export_method_debug=1
+          application/export_method_release=0
+          application/code_sign_identity_release="Apple Distribution"
+          application/provisioning_profile_uuid_release="${PROFILE_UUID}"
+          application/provisioning_profile_specifier_release="${PROFILE_NAME}"
+          application/bundle_identifier="${BUNDLE_ID}"
+          application/short_version="0.1.0"
+          application/version="${{ github.run_number }}"
+          application/targeted_device_family=0
+          application/export_project_only=true
+          icons/icon_1024x1024="res://assets/app_icon_1024.png"
+          CFG
+
+      - name: Godot 匯入資源並匯出 Xcode 專案
+        run: |
+          set -e
+          mkdir -p build/ios
+          "$GODOT" --headless --path godot --import || true
+          "$GODOT" --headless --path godot --export-release "iOS" "$GITHUB_WORKSPACE/build/ios/${APP_NAME}.ipa"
+          ls -la build/ios
+          test -d "build/ios/${APP_NAME}.xcodeproj"
+
+      - name: xcodebuild archive(手動簽章)
+        run: |
+          xcodebuild archive \
+            -project "build/ios/${APP_NAME}.xcodeproj" \
+            -scheme "${APP_NAME}" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/${APP_NAME}.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
+
+      - name: xcodebuild -exportArchive → .ipa
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/${APP_NAME}.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          ls -la "$RUNNER_TEMP/export"
+
+      - name: 保存 .ipa(artifact,7 天)
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-ios-ipa-${{ github.run_number }}
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 7
+
+      - name: 上傳到 TestFlight
+        if: ${{ inputs.upload }}
+        env:
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/private_keys
+          echo "$APPSTORE_API_PRIVATE_KEY" > ~/private_keys/AuthKey_${APPSTORE_API_KEY_ID}.p8
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n1)
+          # altool 有些錯誤(例如 build number 重複)只印 ERROR 但 exit code 還是 0
+          OUTPUT=$(xcrun altool --upload-app -f "$IPA_PATH" -t ios \
+            --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID" 2>&1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q "ERROR:"; then
+            echo "::error::altool 回報錯誤,上傳未成功"
+            exit 1
+          fi
