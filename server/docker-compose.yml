@@ -1,0 +1,33 @@
+# 正式環境(VPS)的遊戲伺服器容器,對應目前實際在跑的 snake-battle-server(2026-09-25 部署時的設定)。
+# 用法(在 VPS 的 /root/sbg/server 裡):見 README「部署到 VPS」。
+#
+# - 程式碼直接掛載這個資料夾(/root/sbg/server → /app),git pull 後重啟容器即生效;
+#   node_modules 也在這個資料夾裡,要在容器裡 npm ci(better-sqlite3 要用容器的 Node 編譯/下載)
+# - 不對外開 port:Caddy(/opt/calendarreminder 的 compose 專案)在同一個 docker 網路裡,
+#   用別名 snake:9090 轉發 wss://my1st123.pp.ua/snake
+# - NODE_ENV=production:除錯指令即使誤設 SBG_DEBUG_COMMANDS 也不會啟用
+# - image 釘在目前用的版本(node:24-bookworm 的 digest),升級 Node 時才改
+name: snake-battle
+
+services:
+  server:
+    image: node:24-bookworm@sha256:6dac556d980b7f0e5498d08f08cee0ca67798b4ad6c23964a9214920e67758d0
+    container_name: snake-battle-server
+    working_dir: /app
+    command: ["node", "src/server.js"]
+    environment:
+      PORT: "9090"
+      HOST: "0.0.0.0"
+      NODE_ENV: production
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    networks:
+      caddy:
+        aliases:
+          - snake
+
+networks:
+  caddy:
+    name: calendar-call-reminder_default
+    external: true

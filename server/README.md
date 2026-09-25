@@ -124,27 +124,130 @@ SBG_DEBUG_COMMANDS=1 npm start
 | `debug_npc_dodge` | `playerId`, `mode`: `always`/`never`/`default` | NPC 被攻擊時永遠閃避/永遠不閃避/照規格 30% |
 | `debug_npc_auto_attack` | `playerId`, `enabled` | 關掉/打開 NPC 自己的自動攻擊,避免干擾手動測試的時序 |
 
-## 部署到小型VPS的建議步驟
+## 部署到 VPS(正式環境:Docker + Caddy)
 
-1. VPS 安裝 Node.js 20+(`nvm install 20` 或發行版套件管理員)
-2. 把整個 `snake-server/` 資料夾上傳到VPS(或用git clone)
-3. `npm install --production`
-4. 用 `pm2` 或 `systemd` 讓程式常駐並自動重啟,並把 `HOST` 設成只接受本機連線、`NODE_ENV` 設成
-   `production`(除錯指令的第二道保險:就算環境裡誤設了 `SBG_DEBUG_COMMANDS=1` 也不會啟用):
-   ```bash
-   npm install -g pm2
-   NODE_ENV=production HOST=127.0.0.1 pm2 start src/server.js --name snake-server
-   pm2 save
-   ```
-   啟動後確認 log 裡**沒有**「除錯指令已啟用」這行。
-5. 前面加一層 Nginx 終止 `wss://` 再轉給本機的 `ws://127.0.0.1:8080`,並用 Let's Encrypt 申請憑證
-   (手機App連線正式環境建議一律走加密連線)。設定範例、certbot指令見 `deploy/nginx.conf.example`
+### 架構
+
+```
+手機 App ──wss://my1st123.pp.ua/snake──▶ Caddy(容器 calendar-call-reminder-caddy-1,:80/:443,Let's Encrypt)
+                                           │  reverse_proxy /snake* snake:9090
+                                           ▼  (docker 網路 calendar-call-reminder_default)
+                                  snake-battle-server 容器(node:24-bookworm,NODE_ENV=production)
+                                           │  掛載 /root/sbg/server → /app
+                                           ▼
+                                  /root/sbg/server/data.sqlite(玩家 ID / 還原碼)
+```
+
+- VPS:`173.249.209.149`,SSH 在 **port 2222**(22 沒開),`ssh -p 2222 root@173.249.209.149`
+- 程式碼:`/root/sbg`(git clone 的 repo),伺服器在 `/root/sbg/server`,容器設定是 `server/docker-compose.yml`
+- Caddy 設定在另一個 compose 專案:`/opt/calendarreminder/Caddyfile`(`my1st123.pp.ua` 區塊裡 `reverse_proxy /snake* snake:9090`),
+  跟這台 VPS 上其他服務共用,改之前先確認不會影響別的站
+- 遊戲容器不對外開 port,只透過 docker 網路別名 `snake` 讓 Caddy 連
+- `deploy/nginx.conf.example` 是早期的 Nginx 方案,正式環境**沒有用**,只留作參考
+
+### 部署步驟
+
+```bash
+ssh -p 2222 root@173.249.209.149
+cd /root/sbg
+
+# 0. 看一下 repo 有沒有別人在 VPS 上直接改、還沒 commit 的檔案(有的話先處理,不要被 pull 蓋掉)
+git status --short
+
+# 1. 部署前備份資料庫(指令見下方「部署前備份資料庫」)
+
+# 2. 更新程式碼
+git pull --ff-only
+
+# 3. package-lock.json 有變動時才需要:在容器裡重裝依賴(better-sqlite3 要用容器裡的 Node 24)
+git diff --stat HEAD@{1} HEAD -- server/package-lock.json
+docker run --rm -v /root/sbg/server:/app -w /app node:24-bookworm npm ci --omit=dev
+
+# 4. 先在正在跑的容器裡試跑新版(另一個 port + 暫存資料庫,不影響線上),看到「伺服器已啟動」才繼續
+docker exec snake-battle-server sh -c 'PORT=9191 HOST=127.0.0.1 NODE_ENV=production DB_PATH=/tmp/preflight.sqlite timeout 4 node src/server.js; rm -f /tmp/preflight.sqlite*'
+
+# 5. 確認現在沒人在玩(重啟會斷掉進行中的對局)
+nsenter -t $(docker inspect -f '{{.State.Pid}}' snake-battle-server) -n ss -tn state established '( sport = :9090 )' | tail -n +2 | wc -l
+
+# 6. 重啟,載入新程式碼(容器設定沒變時用 restart 就好)
+docker restart snake-battle-server
+```
+
+### 部署前備份資料庫
+
+資料庫是 WAL 模式,容器在跑的時候直接 `cp data.sqlite` 會漏掉還在 `-wal` 檔裡的資料,要用 SQLite 的線上備份
+(better-sqlite3 的 `backup()`,在容器裡跑,不用停服務):
+
+```bash
+TS=$(date +%Y%m%d-%H%M)
+docker exec snake-battle-server node -e "
+  const D = require('better-sqlite3');
+  new D('data.sqlite', { readonly: true }).backup('data.sqlite-backup-$TS').then(() =>
+    console.log('備份完成,玩家數', new D('data.sqlite-backup-$TS', { readonly: true }).prepare('select count(*) c from players').get().c));"
+mkdir -p /root/sbg-backups && mv /root/sbg/server/data.sqlite-backup-$TS /root/sbg-backups/data.sqlite-$TS.sqlite
+```
+
+**容器設定有變**(改了 `docker-compose.yml`,或第一次從手動 `docker run` 的容器換成 compose 管理)時,步驟 6 改成:
+
+```bash
+cd /root/sbg/server
+docker compose config            # 先看展開後的設定對不對
+docker rm -f snake-battle-server # 第一次換成 compose 時需要:舊容器不是 compose 建的,名字會衝突
+docker compose up -d
+```
+
+### 部署後檢查(確認除錯指令沒開)
+
+```bash
+docker logs --tail 20 snake-battle-server
+#   要有「貪食蛇對戰伺服器已啟動,監聽埠號 9090」
+#   **不能**有「開發用除錯指令已啟用」;有「拒絕啟用除錯指令」代表有人設了 SBG_DEBUG_COMMANDS 但被 NODE_ENV 擋下
+
+docker exec snake-battle-server sh -c 'env | grep -E "NODE_ENV|SBG_"'
+#   要看到 NODE_ENV=production,而且沒有 SBG_DEBUG_COMMANDS
+```
+
+從外面確認(在任何裝了 node 的電腦上,server/ 目錄裡跑;只做握手和送一個除錯指令,不 identify,不會在正式資料庫建帳號):
+
+```bash
+node -e '
+import("ws").then(({default: WebSocket}) => {
+  const ws = new WebSocket("wss://my1st123.pp.ua/snake"); const got = [];
+  ws.on("open", () => { console.log("連線 OK"); ws.send(JSON.stringify({type: "debug_list"}));
+    setTimeout(() => { console.log(got.length ? "!! 除錯指令有回應,正式環境不該這樣" : "除錯指令沒有回應 OK"); ws.close(); }, 2500); });
+  ws.on("message", (m) => got.push(m.toString())); ws.on("close", () => process.exit(0));
+});'
+```
+
+### 退回舊版
+
+程式碼掛載在容器外,退回 = 把程式碼切回舊的 commit 再重啟:
+
+```bash
+cd /root/sbg
+git log --oneline -5 -- server/          # 找要退回的 commit
+git checkout <舊commit> -- server/src server/package.json server/package-lock.json
+docker restart snake-battle-server
+# 確認沒問題後,之後要回到最新版:git checkout HEAD -- server/ && docker restart snake-battle-server
+```
+
+資料庫要一起退回時(一般不需要,資料表結構目前沒變過):
+
+```bash
+docker stop snake-battle-server
+cp /root/sbg-backups/data.sqlite-YYYYMMDD-HHMM.sqlite /root/sbg/server/data.sqlite
+rm -f /root/sbg/server/data.sqlite-wal /root/sbg/server/data.sqlite-shm
+docker start snake-battle-server
+```
+
+容器設定也要退回時:`git checkout <舊commit> -- server/docker-compose.yml`,再照上面「容器設定有變」重建。
 
 ## 檔案結構
 
 ```
 snake-server/
 ├── package.json
+├── docker-compose.yml  # 正式環境容器設定(見「部署到 VPS」)
 ├── README.md
 ├── .gitignore
 ├── test/               # 情境自動化測試(npm test)
