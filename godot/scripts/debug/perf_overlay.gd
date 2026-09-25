@@ -25,9 +25,7 @@ var _fps_window: Array[float] = []
 func _ready() -> void:
 	layer = 30
 	var theme := Theme.new()
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", "Noto Sans TC", "sans-serif"])
-	theme.default_font = font
+	theme.default_font = UiFont.get_font()
 	theme.default_font_size = 30
 
 	_root = PanelContainer.new()

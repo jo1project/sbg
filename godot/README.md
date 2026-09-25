@@ -28,3 +28,9 @@ rm godot/build_config.gd                                                    # �
 CI 用跟 Flutter 同一個 repo secret `SERVER_URL`。`build_config.gd` 是一般腳本,匯出時會自動包進去,不用改 export filter。
 
 Android 匯出要在 export preset 勾 `VIBRATE` 權限(被攻擊震動,見 `scripts/haptics.gd`)。
+
+## 中文字型
+
+介面文字用打包的 `assets/fonts/NotoSansTC-Bold-subset.ttf`(Noto Sans TC 子集,OFL 授權見同目錄 `OFL.txt`),由 `scripts/ui/ui_font.gd` 提供,子集沒有的字才退回系統字型。不要改回只用 `SystemFont`——iOS 上找不到系統中文字型,Label 會整個畫不出字。
+
+介面新增了罕用字(不在 Big5 常用字裡)的話,重新產生子集:`pip install fonttools`,下載 [NotoSansTC[wght].ttf](https://github.com/google/fonts/tree/main/ofl/notosanstc),執行 `py godot/tools/make_cjk_font.py <下載的 ttf>`(會自動收錄腳本/場景裡出現的所有字)。

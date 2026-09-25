@@ -25,10 +25,8 @@ var _font: Font
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# 預設字型沒有中文字，用系統字型
-	var f := SystemFont.new()
-	f.font_names = PackedStringArray(["Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC", "Noto Sans TC", "sans-serif"])
-	_font = f
+	# 預設字型沒有中文字
+	_font = UiFont.get_font()
 
 func _process(delta: float) -> void:
 	if _touch == -1 or _show_tip:
