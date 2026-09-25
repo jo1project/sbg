@@ -147,6 +147,37 @@ SBG_DEBUG_COMMANDS=1 npm start
 - 遊戲容器不對外開 port,只透過 docker 網路別名 `snake` 讓 Caddy 連
 - `deploy/nginx.conf.example` 是早期的 Nginx 方案,正式環境**沒有用**,只留作參考
 
+### 防火牆(80/443 只接受 Cloudflare)
+
+來源主機的 80/443 **只接受 Cloudflare 的 IP**,其他人直接連 VPS IP 會被丟掉(網站、`wss://…/snake` 都要經過 Cloudflare)。
+
+- **管理方式**:`/usr/local/sbin/geo-firewall.sh`(原始檔在 `/opt/calendarreminder/deploy/geo-firewall.sh`,
+  **屬於 calendar-call-reminder 專案,不在這個 repo**;那個專案重新部署時要確認沒有把這支腳本蓋回舊版)。
+  - 80/443 是 Docker 發佈的 port,流量不經過 INPUT,**ufw 規則對它們沒有作用**;規則在 `DOCKER-USER` chain(註解 `geo-tw`)
+  - Cloudflare IP 清單從 `https://www.cloudflare.com/ips-v4` 下載到 `/var/lib/geo-firewall/cf.v4`,載入 ipset `cf_origin`
+  - `geo-firewall.service` 開機時套用;`geo-firewall-update.timer` 每週更新清單(台灣/VPN 清單 + Cloudflare 清單)再套用
+  - **防呆**:下載失敗會保留上一份清單;完全沒有清單時退回舊規則(443 只允許台灣、80 全開),不會讓網站整個斷掉
+- **不受影響**:容器對外連線(私有網段先 RETURN)、SSH(port 2222)、IPv6(80/443 本來就全擋)
+- **網域必須維持 Cloudflare 代理(橘色雲朵)**。改成 DNS only 的話,網站會連不上,Let's Encrypt 的 HTTP-01 續期也會失敗
+  (驗證請求要經過 Cloudflare 才進得來)
+
+```bash
+/usr/local/sbin/geo-firewall.sh status     # 看 ipset 數量與目前的 DOCKER-USER 規則
+iptables -S DOCKER-USER                    # 應該有「--match-set cf_origin src ... ACCEPT」和 80,443 的 DROP
+/usr/local/sbin/geo-firewall.sh cf         # 手動更新 Cloudflare 清單並重新套用
+systemctl list-timers geo-firewall-update.timer
+```
+
+從外面確認(在非 Cloudflare 的網路上):直連 `<VPS IP>` 的 80/443 要**連不上**,經過網域要正常;
+`curl -sI http://<網域>/.well-known/acme-challenge/x` 要看到 Caddy 的 `308` 轉址(代表 Cloudflare → 來源 :80 通,憑證續期沒問題)。
+
+退回改之前的規則:改動前的腳本與 iptables/ipset 狀態備份在 `/root/firewall-backups/`,
+
+```bash
+cp /root/firewall-backups/geo-firewall.sh.<時間> /usr/local/sbin/geo-firewall.sh
+/usr/local/sbin/geo-firewall.sh apply
+```
+
 ### 部署步驟
 
 ```bash
