@@ -36,6 +36,7 @@ enum State { LOBBY, QUEUE, COUNTDOWN, PLAYING, DEAD, OVER }
 @export var lobby: CanvasLayer           # ui/lobby_screen.gd（大廳，只有線上模式）
 @export var touch_controls: CanvasLayer  # ui/touch_controls.gd（攻擊鈕、放開搖桿閃避）
 @export var combat_hud: CanvasLayer      # ui/combat_hud.gd（被攻擊警示、命中橫幅、失明、一次性訊息）
+@export var top_hud: CanvasLayer         # ui/top_hud.gd（頂部能量條 + 小地圖）
 @export var online := false
 
 var net: Node
@@ -97,6 +98,7 @@ func _ready() -> void:
 		snake.set_frozen(false)
 	else:
 		lobby.hide()
+		top_hud.show()
 		food_manager.use_local_source()
 		_begin_countdown()
 		overlay.set_status("本地模式")
@@ -276,6 +278,7 @@ func join_queue() -> void:
 	state = State.QUEUE
 	result_screen.hide()
 	lobby.hide()
+	top_hud.hide()
 	overlay.hide_banner()
 	overlay.set_status("配對中…(8 秒沒有真人會配電腦)")
 
@@ -329,6 +332,7 @@ func _to_lobby(notice := "") -> void:
 	overlay.hide_banner()
 	overlay.set_status("")
 	result_screen.hide()
+	top_hud.hide()
 	_reset_combat()
 	lobby.set_ready(net.is_identified, notice)
 	lobby.show()
@@ -357,6 +361,9 @@ func _on_message(msg: Dictionary) -> void:
 			_begin_countdown()
 			_reset_combat()
 			_apply_freeze()   # 上一場 game_over 時凍結的蛇要解開
+			overlay.set_status("")   # 對戰中能量改看頂部 HUD
+			top_hud.set_opponent_pos(null)
+			top_hud.show()
 			_update_status()
 		"energy_update":
 			if msg.playerId == net.player_id:
@@ -371,6 +378,10 @@ func _on_message(msg: Dictionary) -> void:
 			if msg.get("attackerId") != net.player_id:
 				_set_incoming(attack_id, float(msg.get("dodgeWindowMs", 1000)) / 1000.0)
 				Haptics.heavy_impact()   # 同 Flutter HapticFeedback.heavyImpact()（規格 9.3）
+		"opponent_position_fuzzy":
+			var p = msg.get("position")
+			if p is Dictionary:
+				top_hud.set_opponent_pos(Vector2(float(p.get("x", 0)), float(p.get("y", 0))))
 		"attack_result":
 			_on_attack_result(msg)
 		"attack_rejected":
@@ -431,7 +442,7 @@ func _show_result(msg: Dictionary) -> void:
 		lobby.set_record(mine.record)   # 大廳的勝／敗
 
 func _update_status() -> void:
-	overlay.set_status("能量 %d · 對手 %s 能量 %d" % [int(my_energy), opponent_id, int(opp_energy)])
+	top_hud.set_energy(my_energy, opp_energy)
 
 # 狀態列不攤開完整網址（正式站網址是建置時帶入的），debug build 例外
 static func _display_url(url: String) -> String:

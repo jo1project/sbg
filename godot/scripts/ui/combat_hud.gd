@@ -106,7 +106,7 @@ func _ready() -> void:
 	_msg_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_msg = UiStyle.label("", 15, Color.WHITE)
 	_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_msg.autowrap_mode = TextServer.AUTOWRAP_OFF   # 訊息都是一行；自動換行的 Label 第一幀會把框撐得很高
 	_msg_panel.add_child(_msg)
 	_msg_panel.hide()
 	_root.add_child(_msg_panel)
@@ -135,9 +135,9 @@ func _layout() -> void:
 	# 被攻擊提示：在底部操作列上方（Flutter bottom: 140）
 	_alert.size = Vector2(ui.x - 2 * 16 * DP, 0)
 	_alert.position = Vector2(16 * DP, ui.y - inset.w - 140 * DP - _alert.get_combined_minimum_size().y)
-	# 一次性訊息：上方狀態列下面
+	# 一次性訊息：頂部 HUD（64dp）下面
 	_msg_panel.size = Vector2(ui.x - 2 * 8 * DP, 0)
-	_msg_panel.position = Vector2(8 * DP, inset.y + 44 * DP)
+	_msg_panel.position = Vector2(8 * DP, inset.y + 72 * DP)
 	# 橫幅：寬度 = 螢幕寬 - 左右 24dp，比例 1000:460
 	var bw := ui.x - 2 * 24 * DP
 	_banner.size = Vector2(bw, bw * 460.0 / 1000.0)

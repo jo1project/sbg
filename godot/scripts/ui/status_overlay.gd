@@ -67,7 +67,7 @@ func _layout() -> void:
 		top = touch_controls.safe_insets().y
 	_status.position = Vector2(0, top + 16)
 	_status.size = Vector2(ui.x, 50)
-	_banner_panel.position = Vector2(60, top + 90)
+	_banner_panel.position = Vector2(60, top + 76 * UiStyle.DP)   # 對戰中頂部 HUD（64dp）的下面
 	_banner_panel.custom_minimum_size = Vector2(ui.x - 120, 0)
 	_banner_panel.size = Vector2(ui.x - 120, 0)
 

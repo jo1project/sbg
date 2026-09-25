@@ -89,8 +89,8 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 |---|---|---|---|---|
 | 顯示伺服器給的食物（food_spawned，恆定 3 個） | `game_controller.dart` `myFoods`；`board.dart` `_paintFoods()` | `net/server_food_source.gd`、`food_manager.gd`、`gem.gd`（本地模式用 `local_food_source.gd`） | 完成 | F-01、F-02 |
 | 蛇頭進食物格 → 本地移除、能量 +1（樂觀預測）、送 food_eaten_request | `game_controller.dart` `_tick()` | `food_manager.gd` `_on_head_arrived()`、`net/server_food_source.gd` `report_eaten()` | 進行中（沒有樂觀 +1，能量等 energy_update） | F-03、F-04（`test/f04_fake_food.mjs`） |
-| energy_update 更新雙方能量 | `game_controller.dart` `_onMessage()` | `game_session.gd`（只顯示在狀態列文字） | 進行中 | F-05 |
-| 自己/對手能量條 | `widgets/energy_bar.dart`；`game_screen.dart` `_TopBar` | — | 未做 | U-01 |
+| energy_update 更新雙方能量 | `game_controller.dart` `_onMessage()` | `game_session.gd` → `ui/top_hud.gd` `set_energy()` | 完成 | F-05 |
+| 自己/對手能量條 | `widgets/energy_bar.dart`；`game_screen.dart` `_TopBar` | `ui/top_hud.gd`（**外觀照新設計**：己方藍、對手紅且由右往左填、頭像、深色底列；Flutter 是綠→黃→紅變色、對手固定黃色。滿格 = 10，滿格時框變亮） | 完成 | U-01 |
 
 ## 6. 攻擊
 
@@ -137,8 +137,8 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 對手能量條 | `widgets/energy_bar.dart`（`mine: false`） | — | 未做 | U-01 |
-| 模糊小地圖：每 2 秒、-2～+2 對稱雜訊（伺服器已改）；對 NPC 不顯示 | `game_screen.dart` `_MiniMap`；伺服器 `room.js` `startMinimapBroadcast()` | — | 未做 | U-02、U-03 |
+| 對手能量條 | `widgets/energy_bar.dart`（`mine: false`） | `ui/top_hud.gd` | 完成 | U-01 |
+| 模糊小地圖：每 2 秒、-2～+2 對稱雜訊（伺服器已改）；對 NPC 不顯示 | `game_screen.dart` `_MiniMap`；伺服器 `room.js` `startMinimapBroadcast()` | `ui/top_hud.gd` `MiniMap`（頂部中間，下方交叉劍圖示） | 完成 | U-02、U-03 |
 
 ## 12. 勝負與雙殺
 
@@ -165,7 +165,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 版面：上方能量條+小地圖、底部搖桿+攻擊鈕、避開安全區域 | `game_screen.dart` | `ui/touch_controls.gd`（底部）、`ui/status_overlay.gd`（狀態列/橫幅） | 進行中（上方能量條、小地圖未做） | U-04 |
+| 版面：上方能量條+小地圖、底部搖桿+攻擊鈕、避開安全區域 | `game_screen.dart` | `ui/top_hud.gd`（頂部能量條+小地圖）、`ui/touch_controls.gd`（底部）、`ui/status_overlay.gd`（配對中狀態列/斷線橫幅） | 完成 | U-04 |
 | 一次性訊息橫幅（3 秒自動消失） | `game_controller.dart` `_setBanner()`；`_Banner` | — | 未做 | U-05 |
 | 設定：光影特效開關 | `screens/settings_screen.dart` | — | 未做 | U-06 |
 | 開發用除錯指令＋除錯面板 | （Flutter 沒有） | `debug/debug_panel.gd`；伺服器 `debug.js` | 完成 | T-01 ～ T-04 |

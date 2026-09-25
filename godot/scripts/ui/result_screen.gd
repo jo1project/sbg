@@ -158,12 +158,7 @@ func _button(text: String, icon: String, colors: Array, on_pressed: Callable) ->
 	row.add_theme_constant_override("separation", int(6 * DP))
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(row)
-	var ic := Control.new()
-	ic.custom_minimum_size = Vector2.ONE * 18 * DP
-	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ic.draw.connect(_draw_icon.bind(ic, icon, colors[2]))
-	row.add_child(ic)
+	row.add_child(UiIcon.make(icon, 18, colors[2]))
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", int(15 * DP))
@@ -171,18 +166,3 @@ func _button(text: String, icon: String, colors: Array, on_pressed: Callable) ->
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(l)
 	return b
-
-# 圖示用畫的（字型裡沒有 ↻ ⌂），座標以 24x24 設計
-func _draw_icon(ic: Control, icon: String, color: Color) -> void:
-	var k := ic.size.x / 24.0
-	ic.draw_set_transform(Vector2.ZERO, 0, Vector2.ONE * k)
-	if icon == "refresh":
-		# 缺一角的圓 + 箭頭
-		ic.draw_arc(Vector2(12, 12), 7.5, deg_to_rad(-60), deg_to_rad(240), 32, color, 2.4, true)
-		var tip := Vector2(12, 12) + Vector2.from_angle(deg_to_rad(-60)) * 7.5
-		ic.draw_colored_polygon(PackedVector2Array([tip + Vector2(-4.5, -3.5), tip + Vector2(3.5, -4.5), tip + Vector2(1.5, 3.5)]), color)
-	else:
-		# 房子：屋頂三角 + 屋身，中間門口
-		ic.draw_colored_polygon(PackedVector2Array([Vector2(12, 3), Vector2(22, 12), Vector2(2, 12)]), color)
-		ic.draw_rect(Rect2(5, 11, 14, 10), color)
-		ic.draw_rect(Rect2(10, 14, 4, 7), Color(0, 0, 0, 0.55))

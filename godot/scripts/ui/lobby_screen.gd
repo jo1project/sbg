@@ -384,48 +384,4 @@ func _icon_button(icon: String, size_dp: float, color: Color, style: StyleBox) -
 	return b
 
 func _icon(icon: String, size_dp: float, color: Color) -> Control:
-	var ic := Control.new()
-	ic.custom_minimum_size = Vector2.ONE * size_dp * DP
-	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ic.draw.connect(_draw_icon.bind(ic, icon, color))
-	return ic
-
-# 圖示用畫的（字型裡沒有這些符號），座標以 24x24 設計
-func _draw_icon(ic: Control, icon: String, color: Color) -> void:
-	var k := ic.size.x / 24.0
-	ic.draw_set_transform(Vector2.ZERO, 0, Vector2.ONE * k)
-	var c := Vector2(12, 12)
-	match icon:
-		"gear":
-			for i in 8:
-				var a := TAU * i / 8.0
-				var d := Vector2.from_angle(a)
-				var n := Vector2(-d.y, d.x)
-				ic.draw_colored_polygon(PackedVector2Array([c + d * 6 + n * 2, c + d * 10.5 + n * 1.6, c + d * 10.5 - n * 1.6, c + d * 6 - n * 2]), color)
-			ic.draw_arc(c, 5.5, 0, TAU, 32, color, 3.0, true)
-		"diamond":
-			ic.draw_colored_polygon(PackedVector2Array([Vector2(6, 4), Vector2(18, 4), Vector2(22, 9), Vector2(12, 21), Vector2(2, 9)]), color)
-			ic.draw_line(Vector2(2, 9), Vector2(22, 9), Color(0, 0, 0, 0.35), 1.2)
-			ic.draw_line(Vector2(9, 4), Vector2(12, 21), Color(0, 0, 0, 0.25), 1.0)
-			ic.draw_line(Vector2(15, 4), Vector2(12, 21), Color(0, 0, 0, 0.25), 1.0)
-		"person":
-			ic.draw_circle(Vector2(12, 8), 4.5, color)
-			ic.draw_colored_polygon(PackedVector2Array([Vector2(3, 22), Vector2(4.5, 16), Vector2(8, 13.5), Vector2(16, 13.5), Vector2(19.5, 16), Vector2(21, 22)]), color)
-		"chevron":
-			ic.draw_polyline(PackedVector2Array([Vector2(8, 4), Vector2(16, 12), Vector2(8, 20)]), color, 3.2, true)
-		"skin":
-			# 上衣
-			ic.draw_colored_polygon(PackedVector2Array([Vector2(8, 3), Vector2(2, 7), Vector2(4.5, 11.5), Vector2(6.5, 10.5), Vector2(6.5, 21),
-				Vector2(17.5, 21), Vector2(17.5, 10.5), Vector2(19.5, 11.5), Vector2(22, 7), Vector2(16, 3), Vector2(14, 5.5), Vector2(10, 5.5)]), color)
-		"trophy":
-			ic.draw_colored_polygon(PackedVector2Array([Vector2(6, 3), Vector2(18, 3), Vector2(17, 10), Vector2(14, 14), Vector2(10, 14), Vector2(7, 10)]), color)
-			ic.draw_arc(Vector2(6, 7), 3, PI / 2, PI * 1.5, 12, color, 1.6, true)
-			ic.draw_arc(Vector2(18, 7), 3, -PI / 2, PI / 2, 12, color, 1.6, true)
-			ic.draw_rect(Rect2(10.5, 14, 3, 4), color)
-			ic.draw_rect(Rect2(7, 18, 10, 3), color)
-		"friends":
-			ic.draw_circle(Vector2(8.5, 8), 3.5, color)
-			ic.draw_colored_polygon(PackedVector2Array([Vector2(2, 20), Vector2(3, 15), Vector2(6, 13), Vector2(11, 13), Vector2(14, 15), Vector2(15, 20)]), color)
-			ic.draw_circle(Vector2(16.5, 7), 3, color)
-			ic.draw_colored_polygon(PackedVector2Array([Vector2(16, 12), Vector2(19.5, 12), Vector2(22, 14), Vector2(23, 19), Vector2(16.5, 19), Vector2(15.5, 14.5)]), color)
+	return UiIcon.make(icon, size_dp, color)
