@@ -1,11 +1,9 @@
 # 對戰狀態的畫面提示（CanvasLayer，不受 3D 後製影響）：
 # - 開局 3-2-1 倒數大字（同 Flutter game_screen.dart _PreGameCountdown）
-# - 橫幅：連線中斷/等待對手重連/結果（同 Flutter _DisconnectBanner / _GameOverOverlay 的文字）
-# - 上方一行狀態（連線/配對/能量），線上模式大廳的「隨機配對」按鈕
+# - 橫幅：連線中斷/等待對手重連（同 Flutter _DisconnectBanner）；對局結果在 result_screen.gd
+# - 上方一行狀態（連線/配對/能量）；大廳和「開始配對」按鈕在 lobby_screen.gd
 # 座標是 1080x1920 基準單位；上方元素避開安全區域（跟 touch_controls.gd 用同一個 safe_insets()）。
 extends CanvasLayer
-
-signal match_pressed
 
 @export var touch_controls: CanvasLayer   # 拿安全區域
 
@@ -14,7 +12,6 @@ var _countdown: Label
 var _banner_panel: PanelContainer
 var _banner: Label
 var _status: Label
-var _match_btn: Button
 
 func _ready() -> void:
 	layer = 11
@@ -60,13 +57,6 @@ func _ready() -> void:
 	_banner_panel.hide()
 	_root.add_child(_banner_panel)
 
-	_match_btn = Button.new()
-	_match_btn.text = "隨機配對"
-	_match_btn.add_theme_font_size_override("font_size", 48)
-	_match_btn.pressed.connect(func(): match_pressed.emit())
-	_match_btn.hide()
-	_root.add_child(_match_btn)
-
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 
@@ -80,8 +70,6 @@ func _layout() -> void:
 	_banner_panel.position = Vector2(60, top + 90)
 	_banner_panel.custom_minimum_size = Vector2(ui.x - 120, 0)
 	_banner_panel.size = Vector2(ui.x - 120, 0)
-	_match_btn.size = Vector2(420, 120)
-	_match_btn.position = Vector2((ui.x - 420) / 2.0, ui.y * 0.62)
 
 func set_countdown(n: int) -> void:
 	_countdown.visible = n > 0
@@ -97,6 +85,3 @@ func hide_banner() -> void:
 
 func set_status(text: String) -> void:
 	_status.text = text
-
-func show_match_button(on: bool) -> void:
-	_match_btn.visible = on

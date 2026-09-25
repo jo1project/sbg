@@ -12,6 +12,7 @@ const scripts = [
   "w03_double_ko.mjs",
   "e07_pause_body_death.mjs",
   "d_reconnect.mjs",
+  "w05_match_stats.mjs",
 ];
 
 const results = [];

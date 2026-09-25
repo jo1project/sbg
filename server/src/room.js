@@ -51,7 +51,10 @@ export class Room {
     // 固定地圖池:每位玩家各自獨立隨機抽一張,雙方可能拿到不同地圖(見規格2.3節)
     this.maps = { [playerA.id]: pickRandomMap(), [playerB.id]: pickRandomMap() };
     this.ended = false;
+    this.startedAt = Date.now();
+    this.pausedTotalMs = 0; // 斷線凍結累計的時間,結算存活時間時扣掉
     this.onEnded = null; // 由外部(matchmaking.js)注入,對戰結束時通知移除房間
+    this.recordResult = null; // 由外部注入(db.js recordMatchResult):(playerId, "win"|"loss"|"draw") -> 更新後的累計戰績
 
     // 斷線寬限期間整場對局暫停(規格6.2):所有對局計時都走 setTimer(),pause() 時停住、resume() 時從剩下的時間繼續
     this.paused = false;
@@ -116,6 +119,7 @@ export class Room {
     if (this.paused) {
       const pausedAt = this.pausedAt;
       this.paused = false;
+      this.pausedTotalMs += pausedMs;
       this.pausedAt = null;
       // 生效中的效果:到期時間往後延暫停的長度,效果不會在凍結期間跑完
       for (const id of this.playerIds) {
@@ -228,6 +232,7 @@ export class Room {
     myFoods.delete(foodId);
     player.lastHeadPos = headPos;
     player.energy += 1;
+    player.gemsEaten += 1;
 
     // 能量條給雙方看(對戰互動用),但食物本身只通知該玩家自己
     this.broadcast(S2C.ENERGY_UPDATE, {
@@ -246,6 +251,7 @@ export class Room {
     if (!player) return;
     player.lastHeadPos = headPos;
     player.snakeBody = Array.isArray(bodyCells) ? bodyCells : [];
+    player.maxLength = Math.max(player.maxLength, player.snakeBody.length);
   }
 
   startMinimapBroadcast() {
@@ -464,6 +470,7 @@ export class Room {
 
     const now = Date.now();
     player.deathReportedAt = now;
+    if (Array.isArray(bodyCells)) player.maxLength = Math.max(player.maxLength, bodyCells.length);
 
     const opponent = this.other(playerId);
 
@@ -491,12 +498,41 @@ export class Room {
 
   // ---------- 結束/斷線 ----------
 
+  // 結算畫面的戰績,雙方的都給(client 用自己的 id 取「我方」、對手的 gems 算得分比數)
+  // record:寫進資料庫後的累計勝敗(大廳顯示用);NPC 不記,為 null
+  matchStats(result) {
+    const now = Date.now();
+    // 結束時還在凍結中(斷線超過寬限期)的這段也不算
+    const pausedMs = this.pausedTotalMs + (this.paused ? now - this.pausedAt : 0);
+    const stats = {};
+    for (const id of this.playerIds) {
+      const p = this.players[id];
+      const endAt = p.deathReportedAt ?? now;
+      stats[id] = {
+        gems: p.gemsEaten,
+        survivalMs: Math.max(0, endAt - this.startedAt - CONFIG.PRE_GAME_COUNTDOWN_MS - pausedMs),
+        maxLength: p.isNpc || p.maxLength === 0 ? null : p.maxLength, // 還沒回報過蛇身(開局 1 秒內就結束)也是 null
+        record: null,
+      };
+      if (!p.isNpc && this.recordResult) {
+        const outcome = result.draw ? "draw" : result.winnerId === id ? "win" : "loss";
+        try {
+          stats[id].record = this.recordResult(id, outcome);
+        } catch (err) {
+          console.error(`[room ${this.id}] 寫入戰績失敗 (player ${id})`, err.message);
+        }
+      }
+    }
+    return stats;
+  }
+
   endGame(result) {
     if (this.ended) return;
     this.ended = true;
     clearInterval(this.minimapTimer);
     for (const t of this.timers) clearTimeout(t.handle);
     this.timers.clear();
+    result = { ...result, stats: this.matchStats(result) };
     this.broadcast(S2C.GAME_OVER, result);
     // 斷線中的玩家收不到,等他重連時補送(見 server.js identify 的重連分支)
     for (const id of this.playerIds) {

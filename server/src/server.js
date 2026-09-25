@@ -2,7 +2,7 @@ import { WebSocketServer } from "ws";
 import { Player } from "./player.js";
 import { Matchmaker } from "./matchmaking.js";
 import { C2S, S2C, CONFIG } from "./events.js";
-import { createPlayer, findPlayerById, findPlayerByRecoveryCode } from "./db.js";
+import { createPlayer, findPlayerById, findPlayerByRecoveryCode, getRecord, recordMatchResult } from "./db.js";
 
 const PORT = process.env.PORT || 8080;
 // 正式環境建議搭配 deploy/nginx.conf.example,由 Nginx 終止 wss:// 再轉給這裡的 ws://
@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || "0.0.0.0";
 const wss = new WebSocketServer({ port: PORT, host: HOST });
 const matchmaker = new Matchmaker();
+matchmaker.recordResult = recordMatchResult;
 
 // 目前在線玩家: playerId -> Player (供好友ID配對查詢)
 const onlinePlayers = new Map();
@@ -82,7 +83,12 @@ function resumeConnection(existing, ws, deviceInfo) {
   }
 
   const room = getRoom(existing);
-  existing.send(S2C.IDENTIFIED, { playerId: existing.id, reconnected: true, inRoom: !!(room && !room.ended) });
+  existing.send(S2C.IDENTIFIED, {
+    playerId: existing.id,
+    reconnected: true,
+    inRoom: !!(room && !room.ended),
+    record: getRecord(existing.id),
+  });
   if (existing.missedGameOver) {
     // 寬限期已過、對局在斷線期間結束了:補送結果
     existing.send(S2C.GAME_OVER, existing.missedGameOver);
@@ -163,7 +169,7 @@ wss.on("connection", (ws) => {
       onlinePlayers.set(playerId, player);
       wsToPlayerId.set(ws, playerId);
 
-      const payload = { playerId };
+      const payload = { playerId, record: getRecord(playerId) }; // record:累計戰績 { wins, losses, draws }(大廳顯示)
       // 只有「剛建立新帳號」的這次回應會附上還原碼,前端此時應提示玩家備份保存
       if (record.justCreated) payload.recoveryCode = record.recoveryCode;
       player.send(S2C.IDENTIFIED, payload);

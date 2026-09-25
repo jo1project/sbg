@@ -16,6 +16,13 @@ db.exec(`
     createdAt INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_recovery_code ON players(recoveryCode);
+  -- 累計戰績(大廳顯示勝/敗):獨立一張表,舊資料庫啟動時自動建立,不用搬移 players
+  CREATE TABLE IF NOT EXISTS player_records (
+    playerId TEXT PRIMARY KEY,
+    wins INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    draws INTEGER NOT NULL DEFAULT 0
+  );
 `);
 
 // displayId: 英數混合短碼,避開容易混淆的字元(0/O, 1/I/l)
@@ -35,7 +42,29 @@ const stmts = {
   ),
   byId: db.prepare("SELECT * FROM players WHERE playerId = ?"),
   byRecoveryCode: db.prepare("SELECT * FROM players WHERE recoveryCode = ?"),
+  record: db.prepare("SELECT wins, losses, draws FROM player_records WHERE playerId = ?"),
+  addResult: db.prepare(`
+    INSERT INTO player_records (playerId, wins, losses, draws) VALUES (@playerId, @w, @l, @d)
+    ON CONFLICT(playerId) DO UPDATE SET
+      wins = wins + excluded.wins, losses = losses + excluded.losses, draws = draws + excluded.draws
+  `),
 };
+
+/** 玩家的累計戰績 { wins, losses, draws },沒打過就是全 0 */
+export function getRecord(playerId) {
+  return stmts.record.get(playerId) || { wins: 0, losses: 0, draws: 0 };
+}
+
+/** 記一場結果(outcome: "win" | "loss" | "draw"),回傳更新後的累計戰績 */
+export function recordMatchResult(playerId, outcome) {
+  stmts.addResult.run({
+    playerId,
+    w: outcome === "win" ? 1 : 0,
+    l: outcome === "loss" ? 1 : 0,
+    d: outcome === "draw" ? 1 : 0,
+  });
+  return getRecord(playerId);
+}
 
 /**
  * 建立一位新玩家,回傳 { playerId, recoveryCode, createdAt }

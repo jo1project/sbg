@@ -3,7 +3,7 @@
 # 模式：
 #   本地單機（debug build 預設）：本地食物產生器；3-2-1 倒數後自動往右走；死亡後 1 秒重新倒數。
 #   線上（release build 預設；debug 用 --online / SBG_ONLINE=1 / 勾 online；強制本地 --local，見 app_config.gd）：
-#     連伺服器，按「隨機配對」（或 M 鍵）排隊；
+#     連伺服器，大廳（ui/lobby_screen.gd）按「開始配對」（或 M 鍵）排隊；結束後顯示結算畫面（ui/result_screen.gd）；
 #     obstacle_layout → 換地圖；food_spawned → 伺服器食物；match_found → 3-2-1 倒數 → 自動往右走；
 #     每秒 snake_position_update；死亡送 death_report 等 game_over。
 #
@@ -30,6 +30,8 @@ enum State { LOBBY, QUEUE, COUNTDOWN, PLAYING, DEAD, OVER }
 @export var chunk_manager: Node3D
 @export var food_manager: Node3D
 @export var overlay: CanvasLayer     # ui/status_overlay.gd
+@export var result_screen: CanvasLayer   # ui/result_screen.gd（結算畫面）
+@export var lobby: CanvasLayer           # ui/lobby_screen.gd（大廳，只有線上模式）
 @export var online := false
 
 var net: Node
@@ -50,7 +52,9 @@ func _ready() -> void:
 	var force_local := "--local" in OS.get_cmdline_user_args() + OS.get_cmdline_args()
 	online = (online or AppConfig.online_default()) and not force_local
 	snake.died.connect(_on_died)
-	overlay.match_pressed.connect(join_queue)
+	lobby.start_pressed.connect(join_queue)
+	result_screen.rematch_pressed.connect(join_queue)
+	result_screen.lobby_pressed.connect(_to_lobby)
 	if online:
 		net = NetClient.new()
 		net.name = "Net"
@@ -58,14 +62,16 @@ func _ready() -> void:
 		net.identified.connect(_on_identified)
 		net.message_received.connect(_on_message)
 		net.connection_lost.connect(_on_connection_lost)
+		lobby.show()
 		if net.server_url == "":
-			overlay.show_banner("這個版本沒有設定伺服器網址\n（建置時要用 SERVER_URL 產生 build_config.gd）")
+			lobby.set_ready(false, "這個版本沒有設定伺服器網址\n（建置時要用 SERVER_URL 產生 build_config.gd）")
 			overlay.set_status("無法連線")
 			return
 		net.connect_to_server()
 		overlay.set_status("連線中… %s" % _display_url(net.server_url))
 		snake.set_frozen(false)
 	else:
+		lobby.hide()
 		food_manager.use_local_source()
 		_begin_countdown()
 		overlay.set_status("本地模式")
@@ -102,8 +108,7 @@ func _process(delta: float) -> void:
 			if online:
 				_dead_wait -= delta
 				if _dead_wait <= 0.0:
-					overlay.show_banner("連線異常,已返回大廳")
-					_to_lobby()
+					_to_lobby("連線異常,已返回大廳")
 
 func _is_frozen() -> bool:
 	return _self_lost or _opp_grace_left >= 0.0
@@ -139,7 +144,8 @@ func join_queue() -> void:
 		return
 	net.send("join_queue")
 	state = State.QUEUE
-	overlay.show_match_button(false)
+	result_screen.hide()
+	lobby.hide()
 	overlay.hide_banner()
 	overlay.set_status("配對中…(8 秒沒有真人會配電腦)")
 
@@ -158,6 +164,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			net.go_background()
 
 func _on_identified(msg: Dictionary) -> void:
+	lobby.set_player(net.player_id, msg.get("record", {}) if msg.get("record") is Dictionary else {})
 	if msg.get("reconnected", false):
 		if _in_match() and msg.get("inRoom", false):
 			overlay.show_banner("已重新連線,等待恢復…")   # 等伺服器 match_resumed
@@ -179,16 +186,21 @@ func _on_connection_lost() -> void:
 		overlay.show_banner("連線中斷,重新連線中...")
 	else:
 		overlay.set_status("連線中斷,重新連線中...")
-		overlay.show_match_button(false)
+		lobby.set_ready(false, "連線中斷,重新連線中...")
 		if state == State.QUEUE:
 			state = State.LOBBY   # 伺服器會把斷線的人移出佇列
+			lobby.show()
 
-func _to_lobby() -> void:
+# notice：大廳按鈕下方的小字（為什麼回到大廳）
+func _to_lobby(notice := "") -> void:
 	state = State.LOBBY
 	snake.set_frozen(false)
 	overlay.set_countdown(0)
-	overlay.show_match_button(true)
-	overlay.set_status("ID %s · 按「隨機配對」（或 M 鍵）開始" % net.player_id)
+	overlay.hide_banner()
+	overlay.set_status("")
+	result_screen.hide()
+	lobby.set_ready(net.is_identified, notice)
+	lobby.show()
 
 func _on_message(msg: Dictionary) -> void:
 	match msg.get("type"):
@@ -208,7 +220,7 @@ func _on_message(msg: Dictionary) -> void:
 			my_energy = 0
 			opp_energy = 0
 			overlay.hide_banner()
-			overlay.show_match_button(false)
+			lobby.hide()
 			_self_lost = false
 			_opp_grace_left = -1.0
 			_apply_freeze()   # 上一場 game_over 時凍結的蛇要解開
@@ -236,21 +248,41 @@ func _on_message(msg: Dictionary) -> void:
 			_opp_grace_left = -1.0
 			_apply_freeze()
 		"death_report_rejected":
-			overlay.show_banner("死亡回報未通過伺服器驗證,已返回大廳")
-			_to_lobby()
+			_to_lobby("死亡回報未通過伺服器驗證,已返回大廳")
 		"game_over":
 			_self_lost = false
 			_opp_grace_left = -1.0
 			snake.set_frozen(true)
-			var text := "平手(Double KO)" if msg.get("draw", false) else ("你贏了!" if msg.get("winnerId") == net.player_id else "你輸了")
-			overlay.show_banner("%s\n（%s）" % [text, msg.get("reason", "")])
+			overlay.hide_banner()
 			overlay.set_countdown(0)
 			state = State.OVER
-			overlay.show_match_button(true)
+			_show_result(msg)
 		"match_waiting":
 			pass
 		"attack_rejected":
 			print("[attack] 攻擊未成立: %s" % msg.get("reason"))
+
+# 結算畫面：伺服器 game_over { reason, winnerId, draw, stats: { [playerId]: { gems, survivalMs, maxLength } } }
+func _show_result(msg: Dictionary) -> void:
+	var won: bool = msg.get("winnerId") == net.player_id
+	var kind := "draw" if msg.get("draw", false) else ("win" if won else "lose")
+	var subtitle := ""
+	match msg.get("reason", ""):
+		"double_ko":
+			subtitle = "雙方同時陣亡(Double KO)"
+		"opponent_left":
+			subtitle = "對手離開了對戰" if won else "你離開了對戰"
+		"opponent_disconnect_timeout":
+			subtitle = "對手斷線超過 10 秒" if won else "斷線超過 10 秒"
+	var stats: Dictionary = msg.get("stats") if msg.get("stats") is Dictionary else {}
+	var mine: Dictionary = stats.get(net.player_id, {})
+	var opp_gems := -1
+	for id in stats:
+		if id != net.player_id:
+			opp_gems = int(stats[id].get("gems", -1))
+	result_screen.show_result(kind, subtitle, mine, opp_gems)
+	if mine.get("record") is Dictionary:
+		lobby.set_record(mine.record)   # 大廳的勝／敗
 
 func _update_status() -> void:
 	overlay.set_status("能量 %d · 對手 %s 能量 %d" % [int(my_energy), opponent_id, int(opp_energy)])

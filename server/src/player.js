@@ -37,6 +37,10 @@ export class Player {
     this.lastHeadPos = null; // 最近一次客戶端回報的蛇頭位置(用於吃食物驗證)
     this.snakeBody = []; // 最近一次回報的完整蛇身佔用座標(伺服器內部用,不轉發給對手)
     this.deathReportedAt = null;
+
+    // 結算畫面的戰績(game_over.stats)
+    this.gemsEaten = 0;
+    this.maxLength = 0; // snake_position_update / death_report 回報過的最長蛇身格數
   }
 
   isBusy() {

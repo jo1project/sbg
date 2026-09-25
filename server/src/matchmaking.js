@@ -9,6 +9,7 @@ export class Matchmaker {
     this.pendingChallenges = new Map(); // targetPlayerId -> {fromPlayer, timeoutTimer}
     this.rooms = new Map(); // roomId -> Room
     this.onRoomCreated = null; // callback(room) 由外部(server.js)注入,方便挂 disconnect handler 等
+    this.recordResult = null; // 由 server.js 注入 db.js recordMatchResult,交給每個 Room 在結束時記戰績
   }
 
   // ---------- 隨機配對 ----------
@@ -156,6 +157,7 @@ export class Matchmaker {
     const room = new Room(roomId, playerA, playerB);
     this.rooms.set(roomId, room);
     room.onEnded = () => this.removeRoom(roomId);
+    room.recordResult = this.recordResult;
 
     playerA.roomId = roomId;
     playerB.roomId = roomId;

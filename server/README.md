@@ -83,6 +83,8 @@ npx -y -p node@22 -c "npm ci && npm test"
 - 資料庫檔案預設為專案根目錄的 `data.sqlite`,可用環境變數 `DB_PATH` 指定其他路徑
 - `players` 資料表目前只有 playerId / recoveryCode / createdAt 三個欄位,
   未來要加成就、角色外觀,直接在這張表加欄位即可,不需重構
+- `player_records` 資料表:每位玩家的累計勝 / 敗 / 平(大廳顯示),每場結束時由 `room.js` 寫入(NPC 不記)。
+  伺服器啟動時 `CREATE TABLE IF NOT EXISTS` 自動建立,舊資料庫部署新版不用手動搬移
 
 ## 安裝與啟動
 
@@ -135,7 +137,7 @@ SBG_DEBUG_COMMANDS=1 npm start
                                   snake-battle-server 容器(node:24-bookworm,NODE_ENV=production)
                                            │  掛載 /root/sbg/server → /app
                                            ▼
-                                  /root/sbg/server/data.sqlite(玩家 ID / 還原碼)
+                                  /root/sbg/server/data.sqlite(玩家 ID / 還原碼 / 勝敗戰績)
 ```
 
 - VPS:SSH 在 **port 2222**(22 沒開),`ssh -p 2222 root@<VPS IP>`。**VPS 的 IP 不要寫進 repo**(這個 repo 是 public,

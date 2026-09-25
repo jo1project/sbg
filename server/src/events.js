@@ -22,7 +22,7 @@ export const C2S = {
 
 export const S2C = {
   // Server -> Client
-  IDENTIFIED: "identified",
+  IDENTIFIED: "identified", // { playerId, record: { wins, losses, draws }, recoveryCode?(新帳號), reconnected?, inRoom? }
   ACCOUNT_RESTORED: "account_restored",
   RESTORE_FAILED: "restore_failed",
   MATCH_FOUND: "match_found",
@@ -46,6 +46,10 @@ export const S2C = {
   OPPONENT_DISCONNECTED: "opponent_disconnected",
   OPPONENT_RECONNECTED: "opponent_reconnected",
   MATCH_RESUMED: "match_resumed", // 斷線方重連後,同一則訊息同時送給雙方:{ pausedMs, serverTime },雙方從凍結處同時恢復
+  // { reason, winnerId, draw, stats: { [playerId]: { gems, survivalMs, maxLength } } }
+  // stats 給結算畫面用:gems 本場吃到的寶石數、survivalMs 存活時間(不含開局倒數與斷線凍結)、
+  // maxLength 回報過的最長蛇身格數(NPC 沒有蛇身、或還沒回報過蛇身時為 null)、
+  // record 記入這場後的累計戰績 { wins, losses, draws }(NPC 為 null)
   GAME_OVER: "game_over",
   ERROR: "error",
 };
@@ -77,4 +81,5 @@ export const CONFIG = {
   SNAKE_POSITION_SYNC_MS: 1000, // 玩家回報蛇身座標的頻率(伺服器內部使用,不轉發完整座標給對手)
   MINIMAP_BROADCAST_MS: 2000,   // 模糊小地圖推播頻率
   MINIMAP_NOISE_RANGE: 2,       // 小地圖座標誤差範圍(±N格的隨機雜訊)
+  PRE_GAME_COUNTDOWN_MS: 3000,  // client 收到 match_found 後的開局倒數(伺服器不等倒數,只在算結算的存活時間時扣掉)
 };

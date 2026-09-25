@@ -20,6 +20,7 @@ export class NpcPlayer extends Player {
     this.foodTimer = setInterval(() => {
       if (this.isPaused() || room.paused) return; // room.paused:對手斷線寬限期間整場凍結
       this.energy += 1;
+      this.gemsEaten += 1;
       room.broadcast("energy_update", {
         playerId: this.id,
         energy: this.energy,

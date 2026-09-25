@@ -208,7 +208,7 @@
 
 | 事件 | 方向 | 頻率 | 用途 |
 |---|---|---|---|
-| `identify` / `identified` | Client ↔ Server | 連線建立時(含斷線重連) | 回報/建立玩家身份,新玩家的回應會附一次性 `recoveryCode`;寬限期內重連回 `reconnected: true` 與 `inRoom` |
+| `identify` / `identified` | Client ↔ Server | 連線建立時(含斷線重連) | 回報/建立玩家身份,新玩家的回應會附一次性 `recoveryCode`;寬限期內重連回 `reconnected: true` 與 `inRoom`;都附累計戰績 `record: { wins, losses, draws }`(大廳顯示,存在資料庫 `player_records`,NPC 對局也算) |
 | `restore_account` / `account_restored` | Client → Server / Server → Client | 換裝置或重灌後 | 用還原碼找回原本的 playerId |
 | `energy_update` | Server → Both | 吃到食物時 | 更新雙方畫面的能量條顯示 |
 | `attack_request` | Client → Server | 玩家操作時 | 攻擊方請求發動攻擊 |
@@ -227,6 +227,7 @@
 | `invite_received` | Server → 被邀請方 | 邀請送達且對方空閒時 | 顯示「XX邀請你對戰」+接受/拒絕 |
 | `invite_accept` / `invite_reject` / `invite_cancel` | Client → Server | 玩家操作時 | 接受/拒絕/撤回邀請 |
 | `invite_failed` / `invite_rejected` / `invite_timeout` / `invite_cancelled` | Server → 發起方(或雙方) | 對應情境觸發 | 告知邀請結果(對方忙碌、拒絕、30秒逾時、已撤回) |
+| `game_over` | Server → Both | 勝負判定後(斷線方重連時補送) | `{ reason, winnerId, draw, stats }`;`stats` 是雙方的結算戰績 `{ [playerId]: { gems, survivalMs, maxLength } }`:本場吃到的寶石數、存活時間(不含開局 3 秒倒數與斷線凍結)、回報過的最長蛇身格數(NPC 或還沒回報過為 `null`)、`record` 記入這場後的累計戰績(NPC 為 `null`)。得分比數 = 雙方 `gems` |
 | 心跳 ping/pong | Client ↔ Server | 每秒一次 | 量測RTT(滑動平均),供延遲補償使用;雙方任一邊 5 秒沒收到訊息視為斷線(6.2 節) |
 | `opponent_disconnected` | Server → 對手 | 一方斷線時 | `{ graceMs }`,對手凍結並顯示倒數(6.2 節) |
 | `opponent_reconnected` | Server → 對手 | 斷線方重連時 | 通知對手已重連(舊版客戶端用來解除凍結) |

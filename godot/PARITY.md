@@ -53,7 +53,8 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 隨機配對 join_queue、等待畫面、取消（送 leave_room） | `main.dart` `_LobbyMenu` `_WaitingView`；`game_controller.dart` `joinQueue()` `leaveRoom()` | `game_session.gd` `join_queue()`、`ui/status_overlay.gd`「隨機配對」按鈕（M 鍵） | 進行中（沒有等待畫面的「取消」、沒有大廳畫面） | M-01、M-02 |
+| 隨機配對 join_queue、等待畫面、取消（送 leave_room） | `main.dart` `_LobbyMenu` `_WaitingView`；`game_controller.dart` `joinQueue()` `leaveRoom()` | `game_session.gd` `join_queue()`、`ui/lobby_screen.gd`「開始配對」按鈕（M 鍵） | 進行中（等待畫面維持原樣、沒有「取消」） | M-01、M-02 |
+| 大廳畫面：設定齒輪、鑽石（預留）、Logo 橫幅、玩家資訊卡（頭像／暱稱預留、勝／敗）、造型預覽、開始配對、底部導覽（造型／排行榜／好友） | `main.dart` `_LobbyMenu`（Flutter 是按鈕選單，沒有這些區塊；決定只改 Godot） | `ui/lobby_screen.gd`；勝／敗來自伺服器 `identified.record`、`game_over.stats[id].record`（`db.js` `player_records`） | 進行中（設定、鑽石、頭像、暱稱、造型選擇、排行榜、好友都是「敬請期待」） | L-01 ～ L-04 |
 | 8 秒沒有真人 → NPC 補位 | 伺服器 `matchmaking.js`（client 只收 match_found） | 同左（Godot 排隊後等 match_found） | 完成 | M-03 |
 | 好友 ID 邀請：送出、等待中鎖定、取消、接受/拒絕、30 秒逾時、對方不在線/忙碌 | `main.dart` `_LobbyMenu` `_IncomingInviteOverlay`；`game_controller.dart` `challengeFriend()` 等 | — | 未做 | M-04 ～ M-10 |
 | 連線記錄（最近 10 位對手） | `game_controller.dart` `_recordOpponent()`；`main.dart` `_LobbyMenu` | — | 未做 | M-11 |
@@ -143,7 +144,8 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| game_over：你贏了／你輸了／平手 | `game_screen.dart` `_GameOverOverlay` | `game_session.gd`（橫幅文字 + 「隨機配對」再來一場） | 完成 | W-01、W-02 |
+| game_over：你贏了／你輸了／平手 | `game_screen.dart` `_GameOverOverlay` | `ui/result_screen.gd`、`game_session.gd` `_show_result()` | 完成（**Godot 版較多**，見下） | W-01、W-02 |
+| 結算畫面：勝／負／平手配色、2x2 戰績（得分比數＝本場寶石數 我方:對手、收集寶石數、存活時間、最長身長）、「再戰一場」（直接重新排隊）／「返回大廳」 | 沒有（只有文字 + 返回大廳；決定只改 Godot，Flutter 維持原樣） | `ui/result_screen.gd`；數據來自伺服器 `game_over.stats`（`room.js` `matchStats()`，舊版 client 會忽略這個欄位） | 完成 | W-05（`test/w05_match_stats.mjs`） |
 | 雙殺 ≤200ms | 伺服器 `room.js` `handleDeathReport()` | 同左 | 完成（伺服器端） | W-03（`test/w03_double_ko.mjs`） |
 | 主動離開對戰 → 對手獲勝 | `game_controller.dart` `leaveRoom()` | — | 未做 | W-04 |
 
