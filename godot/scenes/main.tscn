@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/snake_train.gd" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/ui/status_overlay.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/game_session.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/debug/perf_overlay.gd" id="10"]
+[ext_resource type="Script" path="res://scripts/debug/camera_tuner.gd" id="cam_tuner"]
 [ext_resource type="Script" path="res://scripts/ui/result_screen.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/ui/lobby_screen.gd" id="12"]
 [ext_resource type="Script" path="res://scripts/ui/combat_hud.gd" id="13"]
@@ -118,3 +119,6 @@ top_hud = NodePath("../TopHud")
 script = ExtResource("10")
 world_environment = NodePath("../WorldEnvironment")
 moonlight = NodePath("../Moonlight")
+
+[node name="CameraTuner" type="CanvasLayer" parent="."]
+script = ExtResource("cam_tuner")
