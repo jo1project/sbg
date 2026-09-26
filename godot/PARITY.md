@@ -21,7 +21,7 @@
 路徑省略前綴：Flutter 在 `client/lib/`，Godot 在 `godot/scripts/`，伺服器在 `server/src/`。
 Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境變數 `SBG_ONLINE=1`、`SBG_SERVER_URL`），預設是本地單機模式。
 
-最後更新：2026-09-24
+最後更新：2026-09-26
 
 ### 狀態摘要
 
@@ -42,7 +42,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | WebSocket 連線、JSON 訊息 `{type, ...欄位}`、伺服器網址可設定 | `net/socket_service.dart`、`config.dart`（`SERVER_URL`） | `net/net_client.gd` | 完成 | C-01 |
 | release build 預設連正式站、網址建置時帶入（不寫在原始碼） | `config.dart` `String.fromEnvironment("SERVER_URL")`＋CI `--dart-define` | `app_config.gd`、`tools/write_build_config.sh`（產生 gitignore 的 `build_config.gd`；release 預設線上模式） | 完成 | C-08 |
 | identify：本地保存 playerId、回報 deviceInfo | `game/game_controller.dart` `bootstrap()` `connectAndIdentify()` `_collectDeviceInfo()` | `net/net_client.gd`（`user://sbg_net.cfg`） | 完成 | C-01、C-02 |
-| 新帳號還原碼只顯示一次、restore_account 找回帳號 | `main.dart` `_RecoveryCodeOverlay`；`game_controller.dart` `restoreAccount()` | — | 未做 | C-03、C-04 |
+| 新帳號還原碼只顯示一次、restore_account 找回帳號 | `main.dart` `_RecoveryCodeOverlay`；`game_controller.dart` `restoreAccount()` | 找回帳號：`ui/settings_page.gd`「輸入繼承碼」→ `net/net_client.gd` `restore_account()`；另有「顯示繼承碼」（`get_recovery_code`，Flutter 沒有）。新帳號一次性提示畫面還沒做 | 進行中 | C-03、C-04、L-07、L-08 |
 | 心跳 ping 每秒一次 | `game_controller.dart` `_startPing()` | `net/net_client.gd` | 完成 | C-05 |
 | 心跳逾時：5 秒沒收到訊息 = 斷線（伺服器與 client 兩邊都判） | ⚠ Flutter 沒有 client 端判定；伺服器端 `server.js` 應用層心跳 | `net/net_client.gd` `SILENCE_TIMEOUT`；伺服器 `server.js` | 完成 | D-10、`test/d_reconnect.mjs` |
 | 連線失敗：自動重試 | `game_controller.dart` `_onDisconnected()`；`main.dart` `_ConnectGate`（手動按重新連線） | `net/net_client.gd`（每 1 秒自動重試） | 進行中（Godot 沒有「連線失敗」畫面，只有狀態列文字） | C-06 |
@@ -54,7 +54,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
 | 隨機配對 join_queue、等待畫面、取消（送 leave_room） | `main.dart` `_LobbyMenu` `_WaitingView`；`game_controller.dart` `joinQueue()` `leaveRoom()` | `game_session.gd` `join_queue()`、`ui/lobby_screen.gd`「開始配對」按鈕（M 鍵） | 進行中（等待畫面維持原樣、沒有「取消」） | M-01、M-02 |
-| 大廳畫面：設定齒輪、鑽石（預留）、Logo 橫幅、玩家資訊卡（頭像／暱稱預留、勝／敗）、造型預覽、開始配對、底部導覽（造型／排行榜／好友） | `main.dart` `_LobbyMenu`（Flutter 是按鈕選單，沒有這些區塊；決定只改 Godot） | `ui/lobby_screen.gd`；勝／敗來自伺服器 `identified.record`、`game_over.stats[id].record`（`db.js` `player_records`） | 進行中（設定、鑽石、頭像、暱稱、造型選擇、排行榜、好友都是「敬請期待」） | L-01 ～ L-04 |
+| 大廳畫面：設定齒輪、鑽石（預留）、Logo 橫幅、玩家資訊卡（頭像／暱稱預留、勝／敗）、造型預覽、開始配對、底部導覽（造型／排行榜／好友） | `main.dart` `_LobbyMenu`（Flutter 是按鈕選單，沒有這些區塊；決定只改 Godot） | `ui/lobby_screen.gd`；勝／敗來自伺服器 `identified.record`、`game_over.stats[id].record`（`db.js` `player_records`） | 進行中（設定、暱稱已做；鑽石、頭像、造型選擇、排行榜、好友都是「敬請期待」） | L-01 ～ L-04 |
 | 8 秒沒有真人 → NPC 補位 | 伺服器 `matchmaking.js`（client 只收 match_found） | 同左（Godot 排隊後等 match_found） | 完成 | M-03 |
 | 好友 ID 邀請：送出、等待中鎖定、取消、接受/拒絕、30 秒逾時、對方不在線/忙碌 | `main.dart` `_LobbyMenu` `_IncomingInviteOverlay`；`game_controller.dart` `challengeFriend()` 等 | — | 未做 | M-04 ～ M-10 |
 | 連線記錄（最近 10 位對手） | `game_controller.dart` `_recordOpponent()`；`main.dart` `_LobbyMenu` | — | 未做 | M-11 |
@@ -167,7 +167,10 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 |---|---|---|---|---|
 | 版面：上方能量條+小地圖、底部搖桿+攻擊鈕、避開安全區域 | `game_screen.dart` | `ui/top_hud.gd`（頂部能量條+小地圖）、`ui/touch_controls.gd`（底部）、`ui/status_overlay.gd`（配對中狀態列/斷線橫幅） | 完成 | U-04 |
 | 一次性訊息橫幅（3 秒自動消失） | `game_controller.dart` `_setBanner()`；`_Banner` | — | 未做 | U-05 |
-| 設定：光影特效開關 | `screens/settings_screen.dart` | — | 未做 | U-06 |
+| 設定：光影特效開關 | `screens/settings_screen.dart`（整套光影） | `ui/settings_page.gd`、`game_settings.gd`（**只開關陰影**：火把 + 月光；另有「顯示 FPS」，Flutter 沒有） | 完成 | U-06、L-05 |
+| 設定：暱稱（伺服器 `set_nickname`，大廳玩家卡顯示） | （Flutter 沒有，決定只改 Godot；Flutter 會忽略 identified.nickname） | `ui/settings_page.gd`、`ui/lobby_screen.gd` `set_nickname()` | 完成（對手那邊還看不到暱稱） | L-06 |
+| 設定：修改頭像 | （Flutter 沒有） | 按了顯示「敬請期待」 | 未做 | L-04 |
+| 設定：測試用移動速度（每格毫秒數，**正式上線前拿掉**） | （Flutter 沒有） | `ui/settings_page.gd`、`game_settings.gd` `step_ms`、`snake_train.gd` `_reset()` | 完成 | L-09 |
 | 開發用除錯指令＋除錯面板 | （Flutter 沒有） | `debug/debug_panel.gd`；伺服器 `debug.js` | 完成 | T-01 ～ T-04 |
 
 ---

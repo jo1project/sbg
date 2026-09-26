@@ -18,11 +18,13 @@ export const C2S = {
   ATTACK_REQUEST: "attack_request",
   DODGE_ATTEMPT: "dodge_attempt",
   LEAVE_ROOM: "leave_room",
+  SET_NICKNAME: "set_nickname",           // { nickname } 1～12 字,成功回 nickname_updated,不合格回 error { reason: "invalid_nickname" }
+  GET_RECOVERY_CODE: "get_recovery_code", // 設定頁「顯示繼承碼」用,回 recovery_code
 };
 
 export const S2C = {
   // Server -> Client
-  IDENTIFIED: "identified", // { playerId, record: { wins, losses, draws }, recoveryCode?(新帳號), reconnected?, inRoom? }
+  IDENTIFIED: "identified", // { playerId, record: { wins, losses, draws }, nickname(沒設過是 null), recoveryCode?(新帳號), reconnected?, inRoom? }
   ACCOUNT_RESTORED: "account_restored",
   RESTORE_FAILED: "restore_failed",
   MATCH_FOUND: "match_found",
@@ -51,6 +53,8 @@ export const S2C = {
   // maxLength 回報過的最長蛇身格數(NPC 沒有蛇身、或還沒回報過蛇身時為 null)、
   // record 記入這場後的累計戰績 { wins, losses, draws }(NPC 為 null)
   GAME_OVER: "game_over",
+  NICKNAME_UPDATED: "nickname_updated", // { nickname }
+  RECOVERY_CODE: "recovery_code",       // { recoveryCode }
   ERROR: "error",
 };
 

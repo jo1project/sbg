@@ -101,6 +101,7 @@ func _reset() -> void:
 	_queue.clear()
 	_started = false
 	_growth = 0
+	step_time = GameSettings.step_ms / 1000.0   # TODO 正式上線前拿掉（測試用移動速度）
 	_step = step_time
 	# 上一場被攻擊長出來的節數拿掉
 	while _chars.size() > segment_count:

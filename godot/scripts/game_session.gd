@@ -76,6 +76,8 @@ func _ready() -> void:
 	var force_local := "--local" in OS.get_cmdline_user_args() + OS.get_cmdline_args()
 	online = (online or AppConfig.online_default()) and not force_local
 	snake.died.connect(_on_died)
+	GameSettings.load_file()
+	GameSettings.apply_shadows.call_deferred(get_tree())   # 等場景都 ready（月光、火把）
 	lobby.start_pressed.connect(join_queue)
 	result_screen.rematch_pressed.connect(join_queue)
 	result_screen.lobby_pressed.connect(_to_lobby)
@@ -88,6 +90,10 @@ func _ready() -> void:
 		net.identified.connect(_on_identified)
 		net.message_received.connect(_on_message)
 		net.connection_lost.connect(_on_connection_lost)
+		var sp = lobby.settings_page
+		sp.nickname_submitted.connect(func(n): _send_or_notice("set_nickname", {"nickname": n}))
+		sp.recovery_code_requested.connect(func(): _send_or_notice("get_recovery_code"))
+		sp.restore_submitted.connect(net.restore_account)
 		lobby.show()
 		if net.server_url == "":
 			lobby.set_ready(false, "這個版本沒有設定伺服器網址\n（建置時要用 SERVER_URL 產生 build_config.gd）")
@@ -297,7 +303,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			net.go_background()
 
 func _on_identified(msg: Dictionary) -> void:
-	lobby.set_player(net.player_id, msg.get("record", {}) if msg.get("record") is Dictionary else {})
+	var nickname = msg.get("nickname")
+	lobby.set_player(net.player_id, msg.get("record", {}) if msg.get("record") is Dictionary else {},
+		nickname if nickname is String else "")
+	if lobby.settings_page.get_notice() == "繼承中…":   # 失敗的話 restore_failed 先到、已經換成錯誤訊息
+		lobby.settings_page.set_notice("已繼承帳號 %s" % net.player_id)
 	if msg.get("reconnected", false):
 		if _in_match() and msg.get("inRoom", false):
 			overlay.show_banner("已重新連線,等待恢復…")   # 等伺服器 match_resumed
@@ -418,6 +428,17 @@ func _on_message(msg: Dictionary) -> void:
 			_show_result(msg)
 		"match_waiting":
 			pass
+		# 設定頁
+		"nickname_updated":
+			lobby.set_nickname(str(msg.get("nickname", "")), net.player_id)
+			lobby.settings_page.set_notice("暱稱已更新")
+		"recovery_code":
+			lobby.settings_page.show_recovery_code(str(msg.get("recoveryCode", "")))
+		"restore_failed":
+			lobby.settings_page.set_notice("找不到這個繼承碼")
+		"error":
+			if msg.get("reason") == "invalid_nickname":
+				lobby.settings_page.set_notice("暱稱要 1～12 個字")
 
 # 結算畫面：伺服器 game_over { reason, winnerId, draw, stats: { [playerId]: { gems, survivalMs, maxLength } } }
 func _show_result(msg: Dictionary) -> void:
@@ -440,6 +461,13 @@ func _show_result(msg: Dictionary) -> void:
 	result_screen.show_result(kind, subtitle, mine, opp_gems)
 	if mine.get("record") is Dictionary:
 		lobby.set_record(mine.record)   # 大廳的勝／敗
+
+# 設定頁要送伺服器的動作：還沒連上就提示
+func _send_or_notice(type: String, payload := {}) -> void:
+	if net.is_identified:
+		net.send(type, payload)
+	else:
+		lobby.settings_page.set_notice("還沒連上伺服器")
 
 func _update_status() -> void:
 	top_hud.set_energy(my_energy, opp_energy)

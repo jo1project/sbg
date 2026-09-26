@@ -1,8 +1,8 @@
 # 大廳（線上模式，連上伺服器後、按「開始配對」之前的畫面；結算畫面「返回大廳」也回到這裡）。
 # 由上到下：
-#   頂部列：設定齒輪（敬請期待）、鑽石數量（功能未做，先顯示 0）
+#   頂部列：設定齒輪（→ ui/settings_page.gd）、鑽石數量（功能未做，先顯示 0）
 #   Logo 橫幅：地牢地板磚紋底 +「JO一個英雄」金字深棕紅描邊（字級依寬度縮到放得下，不換行不裁切）+「SNAKE BATTLE」
-#   玩家資訊卡：頭像（預設圖示）、名稱（暱稱未做，先用 ID）、勝／敗（伺服器 player_records）
+#   玩家資訊卡：頭像（預設圖示）、名稱（暱稱，沒設過用 ID）、勝／敗（伺服器 player_records）
 #   造型預覽：目前的蛇（英雄 + 哥布林）、金框箭頭 → 造型頁（敬請期待）
 #   「開始配對」按鈕（按了才進原本的「配對中…」畫面）
 #   底部導覽：造型／排行榜／好友（未開放，灰階，點了顯示敬請期待）
@@ -12,6 +12,7 @@ extends CanvasLayer
 signal start_pressed
 
 const CharacterSprites := preload("res://scripts/character_sprites.gd")
+const SettingsPage := preload("res://scripts/ui/settings_page.gd")
 const DP := UiStyle.DP
 
 const BG := Color("14110d")
@@ -43,6 +44,7 @@ var _start_label: Label
 var _notice: Label
 var _soon: Control
 var _soon_title: Label
+var settings_page: SettingsPage   # game_session 接它的訊號（暱稱、繼承碼）
 var _ready_to_start := false
 var _floor_tex: Array[Texture2D] = []
 
@@ -90,7 +92,10 @@ func _ready() -> void:
 
 	_col.add_child(_bottom_nav())
 
-	_soon = _coming_soon_page()
+	settings_page = SettingsPage.new()
+	settings_page.avatar_pressed.connect(_show_soon.bind("頭像"))
+	root.add_child(settings_page)
+	_soon = _coming_soon_page()   # 蓋在設定頁上面（設定頁的「修改頭像」也用它）
 	root.add_child(_soon)
 
 	visibility_changed.connect(_sync_touch_controls)
@@ -109,6 +114,7 @@ func _layout() -> void:
 	_col.offset_right = -(inset.z + side)
 	_col.offset_top = inset.y + 8 * DP
 	_col.offset_bottom = -(inset.w + 8 * DP)
+	settings_page.set_margins(inset.x + side, inset.y + 8 * DP, inset.z + side, inset.w + 8 * DP)
 	# 標題字級：預設 40dp，放不下就縮（不換行、不裁切）
 	var avail := ui.x - inset.x - inset.z - 2 * side - 2 * 16 * DP
 	var want := int(40 * DP)
@@ -128,10 +134,18 @@ func set_notice(text: String) -> void:
 	_notice.text = text
 
 # record：伺服器 identified / game_over.stats 的 { wins, losses, draws }
-func set_player(player_id: String, record: Dictionary) -> void:
-	_name.text = "玩家 %s" % player_id    # 暱稱功能還沒做，先用 ID
+func set_player(player_id: String, record: Dictionary, nickname := "") -> void:
 	_id.text = "ID %s" % player_id
+	set_nickname(nickname, player_id)
 	set_record(record)
+
+# nickname 空字串 = 沒設過，顯示「玩家 ID」
+func set_nickname(nickname: String, player_id := "") -> void:
+	if nickname != "":
+		_name.text = nickname
+	elif player_id != "":
+		_name.text = "玩家 %s" % player_id
+	settings_page.set_nickname(nickname)
 
 func set_record(record: Dictionary) -> void:
 	_wins.text = "%d 勝" % int(record.get("wins", 0))
@@ -143,13 +157,14 @@ func _sync_touch_controls() -> void:
 		touch_controls.process_mode = Node.PROCESS_MODE_DISABLED if visible else Node.PROCESS_MODE_INHERIT
 	if not visible:
 		_soon.hide()
+		settings_page.hide()
 
 # ---------- 各區塊 ----------
 
 func _top_bar() -> Control:
 	var row := HBoxContainer.new()
 	var gear := _icon_button("gear", 26, TEXT, UiStyle.box(PANEL_BG, PANEL_BORDER, 1, 8, 0))
-	gear.pressed.connect(_show_soon.bind("設定"))
+	gear.pressed.connect(func(): settings_page.open())
 	row.add_child(gear)
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -365,13 +380,7 @@ func _show_soon(title: String) -> void:
 # ---------- 小工具 ----------
 
 func _plain_button(normal: StyleBox, pressed: StyleBox) -> Button:
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_stylebox_override("normal", normal)
-	b.add_theme_stylebox_override("hover", normal)
-	b.add_theme_stylebox_override("pressed", pressed)
-	b.add_theme_stylebox_override("disabled", normal)
-	return b
+	return UiStyle.button(normal, pressed)
 
 func _icon_button(icon: String, size_dp: float, color: Color, style: StyleBox) -> Button:
 	var b := _plain_button(style, style)

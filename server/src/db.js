@@ -23,6 +23,11 @@ db.exec(`
     losses INTEGER NOT NULL DEFAULT 0,
     draws INTEGER NOT NULL DEFAULT 0
   );
+  -- 暱稱:同上,獨立一張表
+  CREATE TABLE IF NOT EXISTS player_profiles (
+    playerId TEXT PRIMARY KEY,
+    nickname TEXT
+  );
 `);
 
 // displayId: 英數混合短碼,避開容易混淆的字元(0/O, 1/I/l)
@@ -43,6 +48,11 @@ const stmts = {
   byId: db.prepare("SELECT * FROM players WHERE playerId = ?"),
   byRecoveryCode: db.prepare("SELECT * FROM players WHERE recoveryCode = ?"),
   record: db.prepare("SELECT wins, losses, draws FROM player_records WHERE playerId = ?"),
+  nickname: db.prepare("SELECT nickname FROM player_profiles WHERE playerId = ?"),
+  setNickname: db.prepare(`
+    INSERT INTO player_profiles (playerId, nickname) VALUES (?, ?)
+    ON CONFLICT(playerId) DO UPDATE SET nickname = excluded.nickname
+  `),
   addResult: db.prepare(`
     INSERT INTO player_records (playerId, wins, losses, draws) VALUES (@playerId, @w, @l, @d)
     ON CONFLICT(playerId) DO UPDATE SET
@@ -53,6 +63,25 @@ const stmts = {
 /** 玩家的累計戰績 { wins, losses, draws },沒打過就是全 0 */
 export function getRecord(playerId) {
   return stmts.record.get(playerId) || { wins: 0, losses: 0, draws: 0 };
+}
+
+/** 暱稱,沒設過是 null */
+export function getNickname(playerId) {
+  return stmts.nickname.get(playerId)?.nickname ?? null;
+}
+
+export const NICKNAME_MAX = 12;
+
+/** 整理暱稱:去頭尾空白、拿掉控制字元,1～12 個字;不合格回傳 null */
+export function cleanNickname(raw) {
+  if (typeof raw !== "string") return null;
+  const s = raw.replace(/[\p{C}]/gu, "").trim();
+  const n = Array.from(s).length;
+  return n >= 1 && n <= NICKNAME_MAX ? s : null;
+}
+
+export function setNickname(playerId, nickname) {
+  stmts.setNickname.run(playerId, nickname);
 }
 
 /** 記一場結果(outcome: "win" | "loss" | "draw"),回傳更新後的累計戰績 */

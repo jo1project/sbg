@@ -2,7 +2,7 @@ import { WebSocketServer } from "ws";
 import { Player } from "./player.js";
 import { Matchmaker } from "./matchmaking.js";
 import { C2S, S2C, CONFIG } from "./events.js";
-import { createPlayer, findPlayerById, findPlayerByRecoveryCode, getRecord, recordMatchResult } from "./db.js";
+import { createPlayer, findPlayerById, findPlayerByRecoveryCode, getRecord, recordMatchResult, getNickname, cleanNickname, setNickname } from "./db.js";
 
 const PORT = process.env.PORT || 8080;
 // 正式環境建議搭配 deploy/nginx.conf.example,由 Nginx 終止 wss:// 再轉給這裡的 ws://
@@ -88,6 +88,7 @@ function resumeConnection(existing, ws, deviceInfo) {
     reconnected: true,
     inRoom: !!(room && !room.ended),
     record: getRecord(existing.id),
+    nickname: getNickname(existing.id),
   });
   if (existing.missedGameOver) {
     // 寬限期已過、對局在斷線期間結束了:補送結果
@@ -169,7 +170,7 @@ wss.on("connection", (ws) => {
       onlinePlayers.set(playerId, player);
       wsToPlayerId.set(ws, playerId);
 
-      const payload = { playerId, record: getRecord(playerId) }; // record:累計戰績 { wins, losses, draws }(大廳顯示)
+      const payload = { playerId, record: getRecord(playerId), nickname: getNickname(playerId) }; // record:累計戰績 { wins, losses, draws }(大廳顯示)
       // 只有「剛建立新帳號」的這次回應會附上還原碼,前端此時應提示玩家備份保存
       if (record.justCreated) payload.recoveryCode = record.recoveryCode;
       player.send(S2C.IDENTIFIED, payload);
@@ -241,6 +242,21 @@ wss.on("connection", (ws) => {
         room.handleDodgeAttempt(player.id, msg.attackId, msg.clientActionTime);
         break;
       }
+
+      case C2S.SET_NICKNAME: {
+        const nickname = cleanNickname(msg.nickname);
+        if (!nickname) {
+          player.send(S2C.ERROR, { reason: "invalid_nickname" });
+          break;
+        }
+        setNickname(player.id, nickname);
+        player.send(S2C.NICKNAME_UPDATED, { nickname });
+        break;
+      }
+
+      case C2S.GET_RECOVERY_CODE:
+        player.send(S2C.RECOVERY_CODE, { recoveryCode: findPlayerById(player.id)?.recoveryCode });
+        break;
 
       case C2S.LEAVE_ROOM: {
         const room = getRoom(player);

@@ -50,7 +50,7 @@ npx -y -p node@22 -c "npm ci && npm test"
 
 | 腳本 | 情境 |
 |---|---|
-| `test/c04_account_db.mjs` | C-02～C-04 玩家 ID/還原碼寫進 SQLite、重開伺服器後還在、restore_account(唯一真的讀寫資料庫的測試) |
+| `test/c04_account_db.mjs` | C-02～C-04 玩家 ID/還原碼寫進 SQLite、重開伺服器後還在、restore_account、get_recovery_code、set_nickname(唯一真的讀寫資料庫的測試) |
 | `test/s10_fake_death.mjs` | S-10 假的 death_report 被拒絕 |
 | `test/f04_fake_food.mjs` | F-04 foodId 對、headPos 錯的吃食回報被忽略 |
 | `test/w03_double_ko.mjs` | W-03 200ms 內雙方死亡 = 平手;超過 = 先回報的輸 |
@@ -80,6 +80,11 @@ npx -y -p node@22 -c "npm ci && npm test"
 - 之後連線都送 `identify`(帶上本地儲存的 playerId)即可自動辨識身份
 - 換裝置或重灌後,送 `restore_account`(帶 recoveryCode)→ 伺服器回傳
   對應的 playerId → 前端再用這個 playerId 送一次 `identify` 完成綁定
+- 設定頁「顯示繼承碼」:已 identify 後送 `get_recovery_code` → 回 `recovery_code { recoveryCode }`
+  (`identified` 的 `recoveryCode` 仍然只在新帳號附上,Flutter 靠它跳一次性的備份畫面)
+- 暱稱:送 `set_nickname { nickname }`(去頭尾空白與控制字元後 1～12 字)→ 回 `nickname_updated { nickname }`,
+  不合格回 `error { reason: "invalid_nickname" }`;`identified` 帶 `nickname`(沒設過是 null)。
+  存在 `player_profiles` 資料表,跟 `player_records` 一樣啟動時自動建立
 - 資料庫檔案預設為專案根目錄的 `data.sqlite`,可用環境變數 `DB_PATH` 指定其他路徑
 - `players` 資料表目前只有 playerId / recoveryCode / createdAt 三個欄位,
   未來要加成就、角色外觀,直接在這張表加欄位即可,不需重構

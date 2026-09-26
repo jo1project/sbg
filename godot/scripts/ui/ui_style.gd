@@ -20,3 +20,13 @@ static func label(text: String, size_dp: float, color: Color) -> Label:
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
+
+# 沒有文字的按鈕（文字/圖示自己加在裡面），hover 跟 normal 一樣（手機沒有 hover）
+static func button(normal: StyleBox, pressed: StyleBox) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_stylebox_override("normal", normal)
+	b.add_theme_stylebox_override("hover", normal)
+	b.add_theme_stylebox_override("pressed", pressed)
+	b.add_theme_stylebox_override("disabled", normal)
+	return b

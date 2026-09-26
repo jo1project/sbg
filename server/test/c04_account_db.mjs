@@ -28,6 +28,19 @@ try {
   const b = new TestClient(server.url, "A2");
   const id2 = await b.connect({ playerId: idm.playerId });
   check(id2.playerId === idm.playerId && !id2.recoveryCode, "用同一個 ID 再連 → 同一位玩家,不再給還原碼");
+  check(id2.nickname === null, "沒設過暱稱 → identified.nickname 是 null");
+  let s = b.mark();
+  b.send({ type: "get_recovery_code" });
+  const rc = await b.waitFor((m) => m.type === "recovery_code", 2000, s);
+  check(rc?.recoveryCode === idm.recoveryCode, "get_recovery_code 回傳同一組還原碼");
+  s = b.mark();
+  b.send({ type: "set_nickname", nickname: "  小蛇\u0000王  " });
+  const nu = await b.waitFor((m) => m.type === "nickname_updated", 2000, s);
+  check(nu?.nickname === "小蛇王", `set_nickname 去掉空白與控制字元(${nu?.nickname})`);
+  s = b.mark();
+  b.send({ type: "set_nickname", nickname: "一二三四五六七八九十一二三" });
+  const bad1 = await b.waitFor((m) => m.type === "error" || m.type === "nickname_updated", 2000, s);
+  check(bad1?.reason === "invalid_nickname", "超過 12 字 → error invalid_nickname");
   b.close();
 
   const restored = await rawSend(server.url, { type: "restore_account", recoveryCode: idm.recoveryCode });
@@ -43,6 +56,7 @@ try {
     const c = new TestClient(server.url, "A3");
     const id3 = await c.connect({ playerId: idm.playerId });
     check(id3.playerId === idm.playerId && !id3.recoveryCode, "重開伺服器後用原本的 ID 連線 → 還是同一位玩家(資料有寫進 SQLite 檔)");
+    check(id3.nickname === "小蛇王", "重開伺服器後暱稱還在");
     c.close();
     const restored2 = await rawSend(server.url, { type: "restore_account", recoveryCode: idm.recoveryCode });
     check(restored2.playerId === idm.playerId, "重開伺服器後還原碼仍然有效");

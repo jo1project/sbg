@@ -21,6 +21,7 @@ var _touches := {}        # index -> true（目前按著的手指）
 var _hold := -1.0         # 三指按住的累計時間，<0 = 沒有在按
 var _refresh_left := 0.0
 var _fps_window: Array[float] = []
+var _fps_label: Label     # 設定頁「顯示 FPS」打開時右上角的小字（GameSettings.show_fps）
 
 func _ready() -> void:
 	layer = 30
@@ -35,6 +36,14 @@ func _ready() -> void:
 	bg.set_content_margin_all(18)
 	bg.set_corner_radius_all(12)
 	_root.add_theme_stylebox_override("panel", bg)
+	_fps_label = Label.new()
+	_fps_label.add_theme_font_override("font", UiFont.get_font())
+	_fps_label.add_theme_font_size_override("font_size", 36)
+	_fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_fps_label.add_theme_constant_override("outline_size", 8)
+	_fps_label.position = Vector2(1080 - 190, 150)   # 右上角（左上角是 debug build 的 DBG 鈕），往下避開瀏海／動態島（1080 寬的 UI 單位）
+	add_child(_fps_label)
+
 	_root.position = Vector2(24, 260)
 	_root.visible = false
 	add_child(_root)
@@ -100,6 +109,9 @@ func _process(delta: float) -> void:
 		if _hold >= HOLD_SECONDS:
 			_hold = -1.0   # 放開前不會重複觸發
 			toggle()
+	_fps_label.visible = GameSettings.show_fps
+	if _fps_label.visible:
+		_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
 	if not _root.visible:
 		return
 	var fps := Engine.get_frames_per_second()
