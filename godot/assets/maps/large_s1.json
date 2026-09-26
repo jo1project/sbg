@@ -1,0 +1,246 @@
+{
+  "mapId": "large_s1",
+  "mapSet": "large",
+  "seed": 1,
+  "blocks": [
+    "map_01~y",
+    "map_02",
+    "map_03~x"
+  ],
+  "gridCols": 27,
+  "gridRows": 51,
+  "gemCount": 10,
+  "rooms": [
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 19,
+      "y1": 22
+    },
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 13,
+      "y1": 16
+    },
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 7,
+      "y1": 10
+    },
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 1,
+      "y1": 4
+    },
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 28,
+      "y1": 34
+    },
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 37,
+      "y1": 43
+    },
+    {
+      "x0": 1,
+      "x1": 10,
+      "y0": 46,
+      "y1": 49
+    },
+    {
+      "x0": 16,
+      "x1": 25,
+      "y0": 1,
+      "y1": 22
+    }
+  ],
+  "corridors": [
+    {
+      "x0": 2,
+      "x1": 5,
+      "y0": 17,
+      "y1": 18
+    },
+    {
+      "x0": 6,
+      "x1": 9,
+      "y0": 11,
+      "y1": 12
+    },
+    {
+      "x0": 3,
+      "x1": 6,
+      "y0": 5,
+      "y1": 6
+    },
+    {
+      "x0": 7,
+      "x1": 10,
+      "y0": 35,
+      "y1": 36
+    },
+    {
+      "x0": 2,
+      "x1": 5,
+      "y0": 44,
+      "y1": 45
+    },
+    {
+      "x0": 2,
+      "x1": 4,
+      "y0": 23,
+      "y1": 27
+    },
+    {
+      "x0": 11,
+      "x1": 15,
+      "y0": 8,
+      "y1": 10
+    },
+    {
+      "x0": 11,
+      "x1": 15,
+      "y0": 1,
+      "y1": 3
+    }
+  ],
+  "spawnPos": {
+    "x": 4,
+    "y": 21
+  },
+  "obstacles": [
+    {
+      "x": 8,
+      "y": 20,
+      "type": "monster",
+      "species": "chort"
+    },
+    {
+      "x": 2,
+      "y": 15,
+      "type": "monster",
+      "species": "skelet"
+    },
+    {
+      "x": 9,
+      "y": 14,
+      "type": "column"
+    },
+    {
+      "x": 4,
+      "y": 9,
+      "type": "chest"
+    },
+    {
+      "x": 7,
+      "y": 8,
+      "type": "monster",
+      "species": "goblin"
+    },
+    {
+      "x": 3,
+      "y": 3,
+      "type": "monster",
+      "species": "imp"
+    },
+    {
+      "x": 5,
+      "y": 33,
+      "type": "monster",
+      "species": "chort"
+    },
+    {
+      "x": 8,
+      "y": 29,
+      "type": "chest"
+    },
+    {
+      "x": 5,
+      "y": 39,
+      "type": "chest"
+    },
+    {
+      "x": 7,
+      "y": 42,
+      "type": "column"
+    },
+    {
+      "x": 9,
+      "y": 39,
+      "type": "chest"
+    },
+    {
+      "x": 9,
+      "y": 47,
+      "type": "crate"
+    },
+    {
+      "x": 6,
+      "y": 48,
+      "type": "column"
+    },
+    {
+      "x": 23,
+      "y": 3,
+      "type": "monster",
+      "species": "big_demon",
+      "size": "big"
+    },
+    {
+      "x": 20,
+      "y": 18,
+      "type": "monster",
+      "species": "ogre",
+      "size": "big"
+    },
+    {
+      "x": 20,
+      "y": 3,
+      "type": "column"
+    },
+    {
+      "x": 19,
+      "y": 16,
+      "type": "column"
+    },
+    {
+      "x": 24,
+      "y": 16,
+      "type": "crate"
+    },
+    {
+      "x": 24,
+      "y": 9,
+      "type": "monster",
+      "species": "skelet",
+      "size": "small"
+    },
+    {
+      "x": 22,
+      "y": 7,
+      "type": "monster",
+      "species": "chort",
+      "size": "small"
+    },
+    {
+      "x": 19,
+      "y": 20,
+      "type": "monster",
+      "species": "skelet",
+      "size": "small"
+    },
+    {
+      "x": 23,
+      "y": 21,
+      "type": "monster",
+      "species": "chort",
+      "size": "small"
+    }
+  ]
+}

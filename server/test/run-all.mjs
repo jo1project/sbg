@@ -14,6 +14,7 @@ const scripts = [
   "d_reconnect.mjs",
   "w05_match_stats.mjs",
   "m_friends.mjs",
+  "l_large_map.mjs",
 ];
 
 const results = [];
