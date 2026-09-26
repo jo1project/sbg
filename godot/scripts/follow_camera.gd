@@ -10,7 +10,7 @@
 extends Camera3D
 
 const DEFAULTS := {
-	"portrait": {"pitch": 45.0, "fov": 20.0, "distance": 0.0, "fit_cells": 9.0, "screen_y": 0.6, "dof_margin": 5.0, "dof_blur": 0.15},
+	"portrait": {"pitch": 25.0, "fov": 35.0, "distance": 34.5, "fit_cells": 9.0, "screen_y": 0.6, "dof_margin": 5.0, "dof_blur": 0.15},
 	"landscape": {"pitch": 35.0, "fov": 36.0, "distance": 0.0, "fit_cells": 9.0, "screen_y": 0.5, "dof_margin": 5.0, "dof_blur": 0.15},
 }
 
