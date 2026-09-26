@@ -9,7 +9,13 @@
 - 隨機配對佇列(逾時8秒配對NPC)
 - 好友ID配對(完整版:忙碌檢查、邀請通知、接受/拒絕/取消、30秒逾時)
 - 房間管理(記憶體 Map,對戰結束即銷毀)
-- 食物生成與吃食驗證(恆定3個,伺服器決定位置)
+- 食物生成與吃食驗證(恆定數量:classic 3 個、大地圖照地圖 `gemCount`;伺服器在地板格上均勻挑位置)
+- 地圖池分兩組(規格 2.3):classic(12x24,雙方各自抽)、large(多塊拼接大地圖,雙方同一張)。
+  `identify` 帶 `mapSets: ["classic","large"]` 的雙方(或對 NPC)才會拿到大地圖;沒帶的 client(Flutter)一律 classic
+- 大地圖產生器 `tools/gen_large_map.mjs`(離線跑,印 ASCII 預覽,人工看過再放進 `maps/`):
+  `node tools/gen_large_map.mjs --blocks=3 --candidates=3 --out-dir=/tmp/cands`,參數與規則見檔頭註解
+- 數值模擬 `tools/balance_sim.mjs`:兩個機器人照真的地圖對打,統計場長、死因、吃寶石速度;
+  `MAP_SET=large` 模擬 Godot(會配大地圖),伺服器用 `MAPS_DIR=<資料夾>` 可以換地圖池測候選地圖
 - 能量系統(乙案:封頂10計算,餘額保留)
 - 兩種攻擊(direct / random)+ 1秒閃躲判定 + RTT延遲補償
 - random攻擊的1秒預告延遲生效

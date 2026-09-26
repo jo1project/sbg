@@ -70,6 +70,9 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 障礙物 crate / column / chest / monster（7 種待機動畫） | `widgets/board.dart` `_obstacleImage()` `_drawObstacle()` | `map_art.gd`（chest 是 3D 箱：蓋子 + 正面，`make_chest()`）、`chunk_manager.gd` | 完成 | G-03 |
 | 大型怪物 size:"big" 佔兩格、置中 | `models/game_map.dart` `MapObstacle.cells`；`board.dart` | `chunk_manager.gd`、`snake_train.gd`、`local_food_source.gd` | 完成 | G-04 |
 | 火把 | `widgets/board.dart` `_paintTorches()` | `chunk_manager.gd` `_plan_torches()`、`map_art.gd` | 完成 | G-05 |
+| 火把陰影只給離蛇最近的 N 支（預設 4，效能面板「投影火把數」調，存檔），其他只發光 | —（Flutter 沒有光影） | `chunk_manager.gd` `_update_torch_shadows()`、`game_settings.gd` `torch_shadow_count` | 完成 | — |
+| chunk 分幀載入：跨 chunk 時近的先建，每幀最多 3ms | —（Flutter 一次畫整張） | `chunk_manager.gd` `_process()` `build_budget_ms` | 完成 | — |
+| 大地圖（large 地圖組）：identify 帶 `mapSets: ["classic","large"]`，雙方都支援時伺服器給同一張大地圖 | **不支援**（沒帶 mapSets → 一律 classic 12x24；棋盤、碰撞、小地圖都寫死 12x24） | `net/net_client.gd` `_identify()`；地圖大小都讀地圖 JSON（`map_loader.gd` `cols/rows`、`ui/top_hud.gd` `set_map_size()`）；本地模式測大地圖：`--sbg-map=<JSON 路徑>` | 完成（見差異 #21） | `test/l_large_map.mjs` |
 
 ## 4. 移動與死亡判定
 
@@ -88,7 +91,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 顯示伺服器給的食物（food_spawned，恆定 3 個） | `game_controller.dart` `myFoods`；`board.dart` `_paintFoods()` | `net/server_food_source.gd`、`food_manager.gd`、`gem.gd`（本地模式用 `local_food_source.gd`） | 完成 | F-01、F-02 |
+| 顯示伺服器給的食物（food_spawned，恆定數量：classic 3 個、大地圖照地圖 `gemCount`） | `game_controller.dart` `myFoods`；`board.dart` `_paintFoods()` | `net/server_food_source.gd`、`food_manager.gd`、`gem.gd`（本地模式用 `local_food_source.gd`） | 完成 | F-01、F-02 |
 | 蛇頭進食物格 → 本地移除、能量 +1（樂觀預測）、送 food_eaten_request | `game_controller.dart` `_tick()` | `food_manager.gd` `_on_head_arrived()`、`net/server_food_source.gd` `report_eaten()` | 進行中（沒有樂觀 +1，能量等 energy_update） | F-03、F-04（`test/f04_fake_food.mjs`） |
 | energy_update 更新雙方能量 | `game_controller.dart` `_onMessage()` | `game_session.gd` → `ui/top_hud.gd` `set_energy()` | 完成 | F-05 |
 | 自己/對手能量條 | `widgets/energy_bar.dart`；`game_screen.dart` `_TopBar` | `ui/top_hud.gd`（**外觀照新設計**：己方藍、對手紅且由右往左填、頭像、深色底列；Flutter 是綠→黃→紅變色、對手固定黃色。滿格 = 10，滿格時框變亮） | 完成 | U-01 |
@@ -139,7 +142,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
 | 對手能量條 | `widgets/energy_bar.dart`（`mine: false`） | `ui/top_hud.gd` | 完成 | U-01 |
-| 模糊小地圖：每 2 秒、-2～+2 對稱雜訊（伺服器已改）；對 NPC 不顯示 | `game_screen.dart` `_MiniMap`；伺服器 `room.js` `startMinimapBroadcast()` | `ui/top_hud.gd` `MiniMap`（頂部中間，下方交叉劍圖示） | 完成 | U-02、U-03 |
+| 模糊小地圖：每 2 秒、-2～+2 對稱雜訊（伺服器已改，大地圖依寬高等比放大）；對 NPC 不顯示 | `game_screen.dart` `_MiniMap`；伺服器 `room.js` `startMinimapBroadcast()` | `ui/top_hud.gd` `MiniMap`（頂部中間，下方交叉劍圖示；比例尺與外框比例照自己這場的地圖大小） | 完成 | U-02、U-03 |
 
 ## 12. 勝負與雙殺
 
@@ -199,6 +202,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 18 | 心跳逾時 | **5 秒**（Flutter 不改、沒有重連，3 秒太容易把網路抖動變成判負） | 伺服器 `CONFIG.HEARTBEAT_TIMEOUT_MS = 5000`、Godot `net_client.gd` `SILENCE_TIMEOUT = 5.0`；規格 6.2、7.4 已更新 |
 | 19 | 移動速度 | **Godot 350ms/格**（用設定頁的測試滑桿在實機上試過後決定，測試滑桿已拿掉）；Flutter 維持 325ms。伺服器不檢查移動速度，兩個 client 可以對打 | Godot `snake_train.gd` `step_time`；規格沒有寫死數值 |
 | 20 | 浮動搖桿、按鈕感應放大 | **Godot 刻意不同**：固定搖桿常因手指沒按準沒反應，改成浮動搖桿（觸發區 = 畫面下方 50%，扣掉安全區域與攻擊按鈕感應範圍）；攻擊按鈕感應範圍比圖示大 30%（圖示不變），按鈕範圍內按下的手指不會變成搖桿，多指互不干擾。放開 = 閃避不變。只影響 client 輸入 | `ui/joystick.gd`、`ui/attack_button.gd`、`ui/touch_controls.gd`；效能面板可切浮動／固定、調觸發區高度與感應放大比例 |
+| 21 | 大地圖 | **只有 Godot 玩大地圖**：雙方都支援（Godot vs Godot、Godot vs NPC）才用 large 地圖組，**雙方同一張**（不再各自抽，規格 2.3 已改）；有 Flutter 參與就雙方都用 classic、照舊各自抽。先做 3 塊拼接，實際玩過再決定要不要加大。Flutter 不改 | 伺服器 `room.js` constructor、`maps.js`（依 `mapSet` 分組）、`tools/gen_large_map.mjs`；NPC 吃寶石間隔依地圖組（`CONFIG.NPC_FOOD_INTERVAL_MS`） |
 
 ### 備註：App 被殺掉後重開回到對戰（#17，之後再做）
 

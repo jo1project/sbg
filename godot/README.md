@@ -13,6 +13,8 @@
 
 覆寫(優先於預設):`--online` / `--local`(或環境變數 `SBG_ONLINE=1` / `0`)、`--sbg-server=ws://...`(或 `SBG_SERVER_URL`)。
 命令列參數要放在 `--` 後面,例如 `godot --path godot -- --online --sbg-server=ws://127.0.0.1:8080`。
+
+本地模式換地圖(例如測大地圖的效能):`--sbg-map=<地圖 JSON 路徑>`(`res://` 或絕對路徑,例如 `server/tools/gen_large_map.mjs` 產生的候選)。
 在編輯器裡想用 release 的預設值測試:`-- --sbg-release-defaults`。
 
 ## 建置 release(正式站)
