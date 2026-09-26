@@ -6,7 +6,8 @@ extends OmniLight3D
 @export var range_jitter := 0.05    # 範圍擺動比例
 @export var speed := 6.0
 
-# 全部火把共用的陰影開關（效能資訊面板 debug/perf_overlay.gd 用來比較開/關陰影的效能；之後新載入的 chunk 也套用）
+# 全部火把共用的陰影開關（效能資訊面板 debug/perf_overlay.gd 用來比較開/關陰影的效能）。
+# 開著時也只有最近的幾支會投影，由 chunk_manager.gd _update_torch_shadows() 挑
 static var shadows_on := true
 
 var _noise := FastNoiseLite.new()
@@ -16,7 +17,7 @@ var _t := 0.0
 
 func _ready() -> void:
 	add_to_group("torch_lights")
-	shadow_enabled = shadows_on
+	shadow_enabled = false   # 要不要投影由 chunk_manager 依距離決定
 	_noise.seed = noise_seed
 	_noise.frequency = 1.0
 	_base_energy = light_energy

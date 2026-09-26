@@ -381,6 +381,7 @@ func _on_message(msg: Dictionary) -> void:
 		"obstacle_layout":
 			# 房間建立時最先到（在 food_spawned、match_found 之前）
 			chunk_manager.load_map_data(msg.map)
+			top_hud.set_map_size(chunk_manager.map.cols, chunk_manager.map.rows)
 			_food_src = ServerFoodSource.new()
 			_food_src.name = "ServerFoodSource"
 			_food_src.net = net

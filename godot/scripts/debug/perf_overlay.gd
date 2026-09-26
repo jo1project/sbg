@@ -1,5 +1,6 @@
 # 效能資訊面板：FPS、每幀時間、draw calls、物件/頂點數、顯示記憶體、渲染器，
-# 加上幾個特效開關（火把陰影、月光陰影、景深、泛光），在實機上直接比較開/關的效能差異。
+# 加上幾個特效開關（火把陰影、月光陰影、景深、泛光），在實機上直接比較開/關的效能差異；
+# 「投影火把數」：只有離蛇最近的幾支火把投影（會存檔，chunk_manager.gd 套用）。
 # 「操作手感」：浮動／固定搖桿、觸發區高度、攻擊按鈕感應放大（GameSettings，會存檔，改了立刻套用）。
 #
 # 開關方式（release build 也能用，TestFlight 版就是 release）：
@@ -58,6 +59,8 @@ func _ready() -> void:
 	v.add_child(_stats)
 
 	v.add_child(_toggle("火把陰影", TorchFlicker.shadows_on, _set_torch_shadows))
+	v.add_child(_stepper("投影火把數", "%d", 1.0, 1.0, 0.0, 12.0,
+		func(): return float(GameSettings.torch_shadow_count), func(x): GameSettings.torch_shadow_count = int(x)))
 	if moonlight:
 		v.add_child(_toggle("月光陰影", moonlight.shadow_enabled, func(on): moonlight.shadow_enabled = on))
 	var attrs := _camera_attributes()
@@ -130,9 +133,7 @@ func _camera_attributes() -> CameraAttributesPractical:
 	return null
 
 func _set_torch_shadows(on: bool) -> void:
-	TorchFlicker.shadows_on = on
-	for l in get_tree().get_nodes_in_group("torch_lights"):
-		l.shadow_enabled = on
+	TorchFlicker.shadows_on = on   # chunk_manager 0.2 秒內套用
 
 func toggle() -> void:
 	_root.visible = not _root.visible

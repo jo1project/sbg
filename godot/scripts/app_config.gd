@@ -40,6 +40,13 @@ static func server_url() -> String:
 		return built
 	return "" if is_release_defaults() else DEV_SERVER_URL
 
+# 本地模式改用別張地圖（例如測大地圖效能）：--sbg-map=<地圖 JSON 路徑，res:// 或絕對路徑>；沒給 = ""
+static func local_map_override() -> String:
+	for a in _args():
+		if a.begins_with("--sbg-map="):
+			return a.trim_prefix("--sbg-map=")
+	return ""
+
 static func online_default() -> bool:
 	var args := _args()
 	if "--local" in args or OS.get_environment("SBG_ONLINE") == "0":

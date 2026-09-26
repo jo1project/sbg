@@ -151,7 +151,8 @@ func _process(delta: float) -> void:
 			_schedule_retry()
 
 func _identify() -> void:
-	var o := {"deviceInfo": "Godot %s %s" % [OS.get_name(), OS.get_model_name()]}
+	# mapSets：支援的地圖組，伺服器靠這個（不是 deviceInfo）決定能不能配大地圖（server events.js C2S.IDENTIFY）
+	var o := {"deviceInfo": "Godot %s %s" % [OS.get_name(), OS.get_model_name()], "mapSets": ["classic", "large"]}
 	if player_id != "":
 		o["playerId"] = player_id
 	send("identify", o)

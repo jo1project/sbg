@@ -6,6 +6,7 @@ var map_id := ""
 var cols := 0
 var rows := 0
 var spawn := Vector2i.ZERO
+var gem_count := 3              # 場上恆定寶石數：JSON 的 gemCount（大地圖產生器依地板格數算），沒有就是 3（server CONFIG.FOOD_COUNT）
 var zones: Array[Rect2i] = []   # rooms + corridors（Rect2i 的 end 為開區間，已把 JSON 的含端點 x1/y1 +1）
 var room_count := 0             # zones 前 room_count 個是 rooms，後面是 corridors
 var floor_cells := {}           # Vector2i -> true；rooms/corridors 範圍內的格子，範圍外什麼都不生成
@@ -28,6 +29,7 @@ func _parse(d: Dictionary) -> void:
 	map_id = str(d.get("mapId", ""))
 	cols = int(d.get("gridCols", 0))
 	rows = int(d.get("gridRows", 0))
+	gem_count = int(d.get("gemCount", 3))
 	var sp: Dictionary = d.get("spawnPos", {})
 	spawn = Vector2i(int(sp.get("x", 0)), int(sp.get("y", 0)))
 

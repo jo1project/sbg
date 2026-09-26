@@ -6,6 +6,7 @@ const TorchFlicker := preload("res://scripts/torch_flicker.gd")
 const PATH := "user://sbg_settings.cfg"
 
 static var shadows := true
+static var torch_shadow_count := 4     # 離蛇最近幾支火把投影（其他只發光），效能面板調
 static var show_fps := false
 # 操作手感（效能面板 debug/perf_overlay.gd 調，存檔；刻意跟 Flutter 不同，見 PARITY.md）
 static var joystick_floating := true   # 浮動搖桿（false = 固定在底部中央，同 Flutter）
@@ -19,6 +20,7 @@ static func load_file() -> void:
 	if cfg.load(PATH) != OK:
 		return
 	shadows = cfg.get_value("video", "shadows", shadows)
+	torch_shadow_count = cfg.get_value("video", "torch_shadow_count", torch_shadow_count)
 	show_fps = cfg.get_value("video", "show_fps", show_fps)
 	joystick_floating = cfg.get_value("input", "joystick_floating", joystick_floating)
 	joystick_zone = cfg.get_value("input", "joystick_zone", joystick_zone)
@@ -28,6 +30,7 @@ static func load_file() -> void:
 static func save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("video", "shadows", shadows)
+	cfg.set_value("video", "torch_shadow_count", torch_shadow_count)
 	cfg.set_value("video", "show_fps", show_fps)
 	cfg.set_value("input", "joystick_floating", joystick_floating)
 	cfg.set_value("input", "joystick_zone", joystick_zone)
@@ -35,11 +38,9 @@ static func save() -> void:
 	cfg.set_value("camera", "profiles", camera_profiles)
 	cfg.save(PATH)
 
-# 陰影：火把（之後載入的 chunk 也套用）+ 月光
+# 陰影：火把（chunk_manager 下次挑投影火把時套用）+ 月光
 static func apply_shadows(tree: SceneTree) -> void:
 	TorchFlicker.shadows_on = shadows
-	for l in tree.get_nodes_in_group("torch_lights"):
-		l.shadow_enabled = shadows
 	var moon := tree.current_scene.get_node_or_null("Moonlight") as DirectionalLight3D if tree.current_scene else null
 	if moon:
 		moon.shadow_enabled = shadows

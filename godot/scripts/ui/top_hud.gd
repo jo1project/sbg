@@ -9,8 +9,6 @@ extends CanvasLayer
 
 const DP := UiStyle.DP
 const ENERGY_CAP := 10.0
-const MAP_COLS := 12.0   # CONFIG.MAP_WIDTH
-const MAP_ROWS := 24.0   # CONFIG.MAP_HEIGHT
 const HEIGHT_DP := 64.0  # 安全區域以下的高度
 
 const BG := Color("14110d")
@@ -115,6 +113,10 @@ func set_opponent_pos(p) -> void:
 	_map.pos = p
 	_map.queue_redraw()
 
+# 小地圖的比例尺 = 自己這場的地圖大小（大地圖雙方同一張；classic 雙方都是 12x24）
+func set_map_size(cols: int, rows: int) -> void:
+	_map.set_map_size(cols, rows)
+
 # ---------- 元件 ----------
 
 func _avatar(c: Array) -> Control:
@@ -173,10 +175,22 @@ class EnergyBar extends Control:
 
 class MiniMap extends Control:
 	var pos = null   # Vector2（格子座標）或 null
+	var cols := 12.0
+	var rows := 24.0
 
 	func _init() -> void:
 		custom_minimum_size = Vector2(20, 36) * UiStyle.DP   # 地圖 12x24 的比例
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# 長邊固定 36dp、短邊照地圖比例（至少 20dp，12x24 維持原本的 20x36）
+	func set_map_size(c: int, r: int) -> void:
+		cols = maxf(1.0, c)
+		rows = maxf(1.0, r)
+		if cols <= rows:
+			custom_minimum_size = Vector2(maxf(20.0, 36.0 * cols / rows), 36.0) * UiStyle.DP
+		else:
+			custom_minimum_size = Vector2(36.0, maxf(20.0, 36.0 * rows / cols)) * UiStyle.DP
+		queue_redraw()
 
 	func _draw() -> void:
 		var sb := StyleBoxFlat.new()
@@ -186,6 +200,6 @@ class MiniMap extends Control:
 		sb.set_corner_radius_all(int(3 * UiStyle.DP))
 		draw_style_box(sb, Rect2(Vector2.ZERO, size))
 		if pos != null:
-			var fx := clampf((pos.x + 0.5) / MAP_COLS, 0.0, 1.0)
-			var fy := clampf((pos.y + 0.5) / MAP_ROWS, 0.0, 1.0)
+			var fx := clampf((pos.x + 0.5) / cols, 0.0, 1.0)
+			var fy := clampf((pos.y + 0.5) / rows, 0.0, 1.0)
 			draw_circle(Vector2(fx * size.x, fy * size.y), 3 * UiStyle.DP, Color("ffd740"))   # Flutter amberAccent

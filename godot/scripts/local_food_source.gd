@@ -1,10 +1,9 @@
 # 暫時的本地食物產生器（還沒接伺服器前用）。行為照抄 server/src/room.js 的 spawnFood()/handleFoodEaten()：
-# 場上恆定 FOOD_COUNT 個，在地圖可通行格裡隨機挑，避開障礙物（big 怪物佔兩格）、蛇身、已有的食物，最多試 50 次；
+# 場上恆定 map.gem_count 個（同 server room.js gemCountFor()），在地圖可通行格裡隨機挑，避開障礙物（big 怪物佔兩格）、蛇身、已有的食物，最多試 50 次；
 # 吃掉一個就補一個。接上伺服器後整個檔案換成 ServerFoodSource。
 extends "res://scripts/food_source.gd"
 
 const MapLoader := preload("res://scripts/map_loader.gd")
-const FOOD_COUNT := 3   # 同 server events.js CONFIG.FOOD_COUNT
 
 var map: MapLoader
 var occupied_by_snake: Callable   # () -> Array[Vector2i]
@@ -21,7 +20,7 @@ func start() -> void:
 		_blocked[c] = true
 		if o.get("size") == "big":
 			_blocked[c + Vector2i(1, 0)] = true
-	for i in FOOD_COUNT:
+	for i in map.gem_count:
 		_spawn()
 
 func report_eaten(food_id: String, head_cell: Vector2i) -> void:
