@@ -97,4 +97,26 @@ for (const id of ["C", "D"]) {
   }
 }
 
+// 撞牆判定用地圖自己的範圍,不是寫死的 12x24:大地圖上 x=20 的地板不算撞牆,地圖外才算
+room.maps["A"] = { gridCols: 36, gridRows: 24, rooms: [{ x0: 1, x1: 34, y0: 1, y1: 22 }], corridors: [], obstacles: [] };
+assert.equal(room.validateDeathReport("A", "wall", { x: 20, y: 5 }), false, "大地圖 x=20 的地板不算撞牆");
+assert.equal(room.validateDeathReport("A", "wall", { x: 36, y: 5 }), true, "大地圖右邊界外算撞牆");
+
+// 寶石在地板格上均勻分布:100 格的房間 + 1 格的走廊,走廊應該只拿到約 1%(以前先抽區域再抽格子會拿到 50%)
+{
+  const counts = { room: 0, corridor: 0 };
+  const map = { rooms: [{ x0: 0, x1: 9, y0: 0, y1: 9 }], corridors: [{ x0: 10, x1: 10, y0: 0, y1: 0 }], obstacles: [{ x: 0, y: 0 }] };
+  const r = new Room("uniform", fakePlayer("U"), fakePlayer("V"));
+  clearInterval(r.minimapTimer);
+  r.maps["U"] = map;
+  for (let i = 0; i < 2000; i++) {
+    r.foods["U"].clear();
+    r.spawnFood("U");
+    const pos = [...r.foods["U"].values()][0];
+    assert.ok(!(pos.x === 0 && pos.y === 0), "寶石不該生成在障礙物上");
+    counts[pos.x === 10 ? "corridor" : "room"]++;
+  }
+  assert.ok(counts.corridor < 60, `1 格走廊不該分到大量寶石(實際 ${counts.corridor}/2000)`);
+}
+
 console.log("room.validateDeathReport: 全部通過");

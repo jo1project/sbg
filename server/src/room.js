@@ -22,16 +22,29 @@ function obstacleCells(o) {
   return [{ x: o.x, y: o.y }];
 }
 
-/** 從地圖的房間+走廊範圍內隨機選一格可通行座標 */
-function randomWalkableCell(map) {
-  if (!map) return null;
-  const zones = [...(map.rooms || []), ...(map.corridors || [])];
-  if (zones.length === 0) return null;
-  const zone = zones[Math.floor(Math.random() * zones.length)];
-  return {
-    x: zone.x0 + Math.floor(Math.random() * (zone.x1 - zone.x0 + 1)),
-    y: zone.y0 + Math.floor(Math.random() * (zone.y1 - zone.y0 + 1)),
-  };
+/**
+ * 地圖所有可放寶石的格子(房間+走廊的地板,扣掉障礙物佔用格),每張地圖算一次後快取。
+ * 寶石從這裡均勻抽,不是「先抽房間/走廊再抽格子」——那樣小走廊跟大房間被抽中的機率一樣,寶石會擠在走廊。
+ */
+const floorCache = new WeakMap();
+function floorCells(map) {
+  let cells = floorCache.get(map);
+  if (cells) return cells;
+  const blocked = new Set((map.obstacles || []).flatMap(obstacleCells).map((c) => `${c.x},${c.y}`));
+  const seen = new Set();
+  cells = [];
+  for (const z of [...(map.rooms || []), ...(map.corridors || [])]) {
+    for (let x = z.x0; x <= z.x1; x++) {
+      for (let y = z.y0; y <= z.y1; y++) {
+        const k = `${x},${y}`;
+        if (seen.has(k) || blocked.has(k)) continue;
+        seen.add(k);
+        cells.push({ x, y });
+      }
+    }
+  }
+  floorCache.set(map, cells);
+  return cells;
 }
 
 /**
@@ -197,20 +210,19 @@ export class Room {
     const map = this.maps[playerId];
     const foodId = `f_${nanoid(8)}`;
 
-    const mapObstacles = map?.obstacles || [];
+    const cells = floorCells(map); // 已扣掉障礙物
     const occupied = (pos) => {
       if ([...myFoods.values()].some((f) => f.x === pos.x && f.y === pos.y)) return true;
       if (player.snakeBody && player.snakeBody.some((c) => c.x === pos.x && c.y === pos.y)) return true;
-      if (mapObstacles.some((o) => obstacleCells(o).some((c) => c.x === pos.x && c.y === pos.y))) return true;
       return false;
     };
 
     let pos;
     let attempts = 0;
     do {
-      pos = randomWalkableCell(map);
+      pos = cells[Math.floor(Math.random() * cells.length)];
       attempts++;
-    } while (pos && occupied(pos) && attempts < 50); // 避免蛇身佔滿地圖時無窮迴圈
+    } while (occupied(pos) && attempts < 50); // 避免蛇身佔滿地圖時無窮迴圈
 
     myFoods.set(foodId, pos);
     player.send(S2C.FOOD_SPAWNED, { foodId, position: pos });
@@ -437,16 +449,13 @@ export class Room {
   // ---------- 死亡判定(客戶端回報座標、伺服器驗證碰撞是否成立) ----------
 
   // 用死亡當下回報的座標做邏輯自洽驗證,不是重新模擬整場移動:
-  // 撞牆/牆體用該玩家抽到的地圖判斷(超出地圖邊界,或落在所有房間/走廊範圍之外的黑色虛空/牆體皆算,
+  // 撞牆/牆體用該玩家的地圖判斷(落在所有房間/走廊範圍之外就算,超出地圖邊界的座標一定也在範圍外,
   // 見規格文件2.3節);撞自己則檢查蛇頭是否真的落在回報的蛇身格上;撞障礙物則比對該玩家地圖的障礙物清單。
   // 擋掉「完全沒碰撞卻回報死亡」的假造事件,細節見規格文件6.1節的取捨說明。
   validateDeathReport(playerId, cause, headPos, bodyCells) {
     if (!headPos || typeof headPos.x !== "number" || typeof headPos.y !== "number") return false;
     const map = this.maps[playerId];
-    if (cause === "wall") {
-      const outOfBounds = headPos.x < 0 || headPos.x >= CONFIG.MAP_WIDTH || headPos.y < 0 || headPos.y >= CONFIG.MAP_HEIGHT;
-      return outOfBounds || !isWalkable(map, headPos);
-    }
+    if (cause === "wall") return !isWalkable(map, headPos);
     if (cause === "self") {
       return Array.isArray(bodyCells) && bodyCells.some((c) => c && c.x === headPos.x && c.y === headPos.y);
     }
