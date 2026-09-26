@@ -42,6 +42,7 @@ func _ready() -> void:
 	_toggle.text = "DBG"
 	_toggle.position = Vector2(16, 200)
 	_toggle.pressed.connect(func(): _panel.visible = not _panel.visible)
+	_toggle.add_to_group("blocks_joystick")
 	root.add_child(_toggle)
 
 	_panel = PanelContainer.new()
@@ -53,6 +54,7 @@ func _ready() -> void:
 	bg.set_content_margin_all(16)
 	bg.set_corner_radius_all(12)
 	_panel.add_theme_stylebox_override("panel", bg)
+	_panel.add_to_group("blocks_joystick")   # 面板打開時按在上面不會變成浮動搖桿
 	root.add_child(_panel)
 
 	var v := VBoxContainer.new()

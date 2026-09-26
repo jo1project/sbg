@@ -4,12 +4,16 @@ class_name GameSettings
 
 const TorchFlicker := preload("res://scripts/torch_flicker.gd")
 const PATH := "user://sbg_settings.cfg"
-const DEFAULT_STEP_MS := 325   # 同 snake_train.gd step_time、Flutter GameConfig.moveTickMs
 
 static var shadows := true
 static var show_fps := false
-# TODO 正式上線前拿掉：測試用移動速度（每格毫秒數），snake_train.gd 每次開局讀
-static var step_ms := DEFAULT_STEP_MS
+# 操作手感（效能面板 debug/perf_overlay.gd 調，存檔；刻意跟 Flutter 不同，見 PARITY.md）
+static var joystick_floating := true   # 浮動搖桿（false = 固定在底部中央，同 Flutter）
+static var joystick_zone := 0.5        # 浮動搖桿觸發區：畫面下方多少比例的高度
+static var button_hit_scale := 1.3     # 攻擊按鈕感應範圍 / 圖示大小
+static var steer_off_axis := 0.25      # 斜推：另一軸分量要佔推桿長度多少才轉（ui/stick_steer.gd）
+static var steer_retrigger_deg := 30.0 # 同一次按住，角度要再變多少才觸發下一次轉向
+static var steer_hysteresis_deg := 8.0 # 主要軸在 45° 交界的遲滯
 
 static func load_file() -> void:
 	var cfg := ConfigFile.new()
@@ -17,13 +21,23 @@ static func load_file() -> void:
 		return
 	shadows = cfg.get_value("video", "shadows", shadows)
 	show_fps = cfg.get_value("video", "show_fps", show_fps)
-	step_ms = cfg.get_value("test", "step_ms", step_ms)
+	joystick_floating = cfg.get_value("input", "joystick_floating", joystick_floating)
+	joystick_zone = cfg.get_value("input", "joystick_zone", joystick_zone)
+	button_hit_scale = cfg.get_value("input", "button_hit_scale", button_hit_scale)
+	steer_off_axis = cfg.get_value("input", "steer_off_axis", steer_off_axis)
+	steer_retrigger_deg = cfg.get_value("input", "steer_retrigger_deg", steer_retrigger_deg)
+	steer_hysteresis_deg = cfg.get_value("input", "steer_hysteresis_deg", steer_hysteresis_deg)
 
 static func save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("video", "shadows", shadows)
 	cfg.set_value("video", "show_fps", show_fps)
-	cfg.set_value("test", "step_ms", step_ms)
+	cfg.set_value("input", "joystick_floating", joystick_floating)
+	cfg.set_value("input", "joystick_zone", joystick_zone)
+	cfg.set_value("input", "button_hit_scale", button_hit_scale)
+	cfg.set_value("input", "steer_off_axis", steer_off_axis)
+	cfg.set_value("input", "steer_retrigger_deg", steer_retrigger_deg)
+	cfg.set_value("input", "steer_hysteresis_deg", steer_hysteresis_deg)
 	cfg.save(PATH)
 
 # 陰影：火把（之後載入的 chunk 也套用）+ 月光

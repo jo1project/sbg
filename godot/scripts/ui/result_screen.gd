@@ -40,6 +40,7 @@ func _ready() -> void:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.theme = theme
+	root.add_to_group("blocks_joystick")   # 結算畫面顯示時，下半部按下不會變成浮動搖桿
 	add_child(root)
 
 	var mask := ColorRect.new()

@@ -53,11 +53,11 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 隨機配對 join_queue、等待畫面、取消（送 leave_room） | `main.dart` `_LobbyMenu` `_WaitingView`；`game_controller.dart` `joinQueue()` `leaveRoom()` | `game_session.gd` `join_queue()`、`ui/lobby_screen.gd`「開始配對」按鈕（M 鍵） | 進行中（等待畫面維持原樣、沒有「取消」） | M-01、M-02 |
-| 大廳畫面：設定齒輪、鑽石（預留）、Logo 橫幅、玩家資訊卡（頭像／暱稱預留、勝／敗）、造型預覽、開始配對、底部導覽（造型／排行榜／好友） | `main.dart` `_LobbyMenu`（Flutter 是按鈕選單，沒有這些區塊；決定只改 Godot） | `ui/lobby_screen.gd`；勝／敗來自伺服器 `identified.record`、`game_over.stats[id].record`（`db.js` `player_records`） | 進行中（設定、暱稱已做；鑽石、頭像、造型選擇、排行榜、好友都是「敬請期待」） | L-01 ～ L-04 |
+| 隨機配對 join_queue、等待畫面、取消（送 leave_room） | `main.dart` `_LobbyMenu` `_WaitingView`；`game_controller.dart` `joinQueue()` `leaveRoom()` | `game_session.gd` `join_queue()`、`ui/lobby_screen.gd`「隨機配對」按鈕（M 鍵） | 進行中（等待畫面維持原樣、沒有「取消」） | M-01、M-02 |
+| 大廳畫面：設定齒輪、鑽石（預留）、Logo 橫幅、玩家資訊卡（頭像／暱稱預留、勝／敗）、造型預覽、開始配對、底部導覽（造型／排行榜／好友） | `main.dart` `_LobbyMenu`（Flutter 是按鈕選單，沒有這些區塊；決定只改 Godot） | `ui/lobby_screen.gd`；勝／敗來自伺服器 `identified.record`、`game_over.stats[id].record`（`db.js` `player_records`） | 進行中（設定、暱稱、好友連線、好友清單已做；鑽石、頭像、造型選擇、排行榜都是「敬請期待」） | L-01 ～ L-04 |
 | 8 秒沒有真人 → NPC 補位 | 伺服器 `matchmaking.js`（client 只收 match_found） | 同左（Godot 排隊後等 match_found） | 完成 | M-03 |
-| 好友 ID 邀請：送出、等待中鎖定、取消、接受/拒絕、30 秒逾時、對方不在線/忙碌 | `main.dart` `_LobbyMenu` `_IncomingInviteOverlay`；`game_controller.dart` `challengeFriend()` 等 | — | 未做 | M-04 ～ M-10 |
-| 連線記錄（最近 10 位對手） | `game_controller.dart` `_recordOpponent()`；`main.dart` `_LobbyMenu` | — | 未做 | M-11 |
+| 好友 ID 邀請：送出、等待中鎖定、取消、接受/拒絕、30 秒逾時、對方不在線/忙碌 | `main.dart` `_LobbyMenu` `_IncomingInviteOverlay`；`game_controller.dart` `challengeFriend()` 等 | 大廳「好友連線」→ `ui/friends_page.gd`（左：自己的編號，右：輸入編號＋送出邀請）；等待／收到邀請 `ui/invite_overlay.gd`；`game_session.gd` `_send_invite()`（失敗原因翻成中文，邀請帶暱稱 `fromNickname`） | 完成 | M-04 ～ M-10、M-14、M-16、`test/m_friends.mjs` |
+| 連線記錄（最近 10 位對手） | `game_controller.dart` `_recordOpponent()`（存本機，NPC 也會記）；`main.dart` `_LobbyMenu` | **Godot 改成伺服器的好友清單**：底部「好友」→ `ui/friends_page.gd`，伺服器 `get_friends`（`db.js` `friends` 表，兩位真人開房時互相加入，NPC 不記，最多 50 位，含暱稱與在線狀態），點「邀請」直接送請求 | 完成 | M-15、`test/m_friends.mjs` |
 | 開局：obstacle_layout / food_spawned 先於 match_found 到達 | `game_controller.dart` `_startMatch()` | `game_session.gd` `_on_message()` | 完成 | M-12 |
 | 開局 3-2-1 倒數後自動往右走（倒數中可先輸入方向） | `game_controller.dart` `_startPreGameCountdown()`；`screens/game_screen.dart` `_PreGameCountdown` | `game_session.gd` `_begin_countdown()`、`ui/status_overlay.gd`、`snake_train.gd` `start()` | 完成 | M-13 |
 
@@ -75,9 +75,10 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 移動 325ms/格 | `config.dart` `moveTickMs`；`game_controller.dart` `_tick()` | `snake_train.gd` `step_time` | 完成 | S-01 |
+| 移動速度 | `config.dart` `moveTickMs`（325ms/格）；`game_controller.dart` `_tick()` | `snake_train.gd` `step_time`（**350ms/格**，2026-09 實機測試後決定；Flutter 維持 325ms，見差異 #19） | 完成 | S-01 |
 | 開局 4 節、spawnPos 往左排、面向右 | `game_controller.dart` `_startMatch()` | `snake_train.gd` `reset_to()` | 完成 | S-02 |
-| 轉向：4 方向、死區 10dp、不能 180 度迴轉、轉向佇列 | `widgets/joystick.dart`；`game_controller.dart` `setDirection()`（只存最後一個） | `ui/joystick.gd`、`snake_train.gd` `set_direction()`（佇列，規格 9.2 已寫明） | 完成 | S-03、S-04 |
+| 轉向：死區 10dp、不能 180 度迴轉、轉向佇列 | `widgets/joystick.dart`（角度切 4 等分）；`game_controller.dart` `setDirection()`（只存最後一個） | `ui/stick_steer.gd`（**斜角轉向，刻意不同，見差異 #20**）、`ui/touch_controls.gd` `_on_stick_moved()`、`snake_train.gd` `set_direction()`（佇列，規格 9.2 已寫明）、`heading()` | 完成 | S-03、S-04、`tools/test_stick_steer.gd` |
+| 浮動搖桿：畫面下半部（扣掉按鈕感應範圍、安全區域）任何地方按下就出現、拖出半徑時底座跟著手指、放開回到預設位置顯示半透明待機底座；可切回固定搖桿 | `widgets/joystick.dart`（固定在底部中央） | `ui/joystick.gd`、`ui/touch_controls.gd` `_layout()` `_blocks_joystick()`（**刻意不同，見差異 #21**） | 完成 | S-12 ～ S-15 |
 | 死亡判定：wall / self / obstacle | `game/collision.dart` `checkDeath()` | `snake_train.gd` `_death_cause()` | 完成 | S-05 ～ S-08 |
 | 送 death_report（bodyCells 含頭）、5 秒沒回應回大廳、death_report_rejected | `game_controller.dart` `_tick()`、`_onMessage()` | `game_session.gd` `_on_died()`、`_process()` | 完成 | S-09、S-10（`test/s10_fake_death.mjs`） |
 | 每秒 snake_position_update | `game_controller.dart` `_startPositionSync()` | `game_session.gd` `_process()` | 完成 | S-11 |
@@ -96,7 +97,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 兩顆攻擊按鈕：點擊發動、長按顯示說明、放開不發動 | `widgets/attack_button.dart`；`game_screen.dart` `_BottomBelt` | `ui/attack_button.gd`、`ui/touch_controls.gd`（J/K 鍵）→ `attack_requested` 訊號 | 完成 | A-01 |
+| 兩顆攻擊按鈕：點擊發動、長按顯示說明、放開不發動 | `widgets/attack_button.dart`；`game_screen.dart` `_BottomBelt` | `ui/attack_button.gd`、`ui/touch_controls.gd`（J/K 鍵）→ `attack_requested` 訊號；**感應範圍是比圖示大 30% 的圓**（`hit()`、`GameSettings.button_hit_scale`，差異 #21） | 完成 | A-01 |
 | 送 attack_request，等結果期間按鈕 disabled（不在本地先扣能量，規格 7.5 已改） | `game_controller.dart` `attack()`、`pendingOutgoingAttack` | `game_session.gd` `attack()`、`_attack_pending`、`touch_controls.gd` `set_attack_enabled()` | 完成（Godot 另外擋「不在 PLAYING 狀態」，開局倒數中按了不送） | A-02、A-08 |
 | attack_rejected 顯示原因（含新的 match_paused） | `game_controller.dart` `_onMessage()` | `game_session.gd` `REJECT_REASONS`、`ui/combat_hud.gd` `show_message()` | 完成（**Godot 把 reason 翻成中文**，Flutter 顯示原始英文代碼） | A-05 ～ A-08、D-07 |
 | 直接攻擊命中 → 防守方變長 | `game_controller.dart` `_handleAttackResult()` `_growthPending` | `snake_train.gd` `grow()`（每步多一節，尾巴留在原地） | 完成 | A-03 |
@@ -170,7 +171,6 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 設定：光影特效開關 | `screens/settings_screen.dart`（整套光影） | `ui/settings_page.gd`、`game_settings.gd`（**只開關陰影**：火把 + 月光；另有「顯示 FPS」，Flutter 沒有） | 完成 | U-06、L-05 |
 | 設定：暱稱（伺服器 `set_nickname`，大廳玩家卡顯示） | （Flutter 沒有，決定只改 Godot；Flutter 會忽略 identified.nickname） | `ui/settings_page.gd`、`ui/lobby_screen.gd` `set_nickname()` | 完成（對手那邊還看不到暱稱） | L-06 |
 | 設定：修改頭像 | （Flutter 沒有） | 按了顯示「敬請期待」 | 未做 | L-04 |
-| 設定：測試用移動速度（每格毫秒數，**正式上線前拿掉**） | （Flutter 沒有） | `ui/settings_page.gd`、`game_settings.gd` `step_ms`、`snake_train.gd` `_reset()` | 完成 | L-09 |
 | 開發用除錯指令＋除錯面板 | （Flutter 沒有） | `debug/debug_panel.gd`；伺服器 `debug.js` | 完成 | T-01 ～ T-04 |
 
 ---
@@ -197,6 +197,9 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 16 | 斷線時閃避視窗開著 | **已決定：重新給完整 1 秒** | 伺服器 `CONFIG.DODGE_WINDOW_ON_RESUME = "full"`；規格 6.2、D-08 已更新 |
 | 17 | App 被系統殺掉後重開回到對戰 | **之後再做** | 見下方備註 |
 | 18 | 心跳逾時 | **5 秒**（Flutter 不改、沒有重連，3 秒太容易把網路抖動變成判負） | 伺服器 `CONFIG.HEARTBEAT_TIMEOUT_MS = 5000`、Godot `net_client.gd` `SILENCE_TIMEOUT = 5.0`；規格 6.2、7.4 已更新 |
+| 19 | 移動速度 | **Godot 350ms/格**（用設定頁的測試滑桿在實機上試過後決定，測試滑桿已拿掉）；Flutter 維持 325ms。伺服器不檢查移動速度，兩個 client 可以對打 | Godot `snake_train.gd` `step_time`；規格沒有寫死數值 |
+| 20 | 搖桿斜角轉向 | **Godot 刻意不同**：Flutter 把搖桿角度切 4 等分，推斜角時在 45° 交界有一半機率被判成迴轉或同方向，輸入被丟掉。Godot 看蛇目前的方向（含佇列）：主要軸是迴轉或同方向時改用另一軸（分量 ≥ 推桿長度 25% 才算）；同一次按住只觸發一次，角度再變 30° 以上或回到死區才能再轉（按住不動不鋸齒）；主要軸 45° 交界加 8° 遲滯。死區 10dp、不能迴轉、轉向佇列不變。只影響 client 輸入，跟伺服器、訊息格式無關 | `ui/stick_steer.gd`；參數在效能面板（三指按住 1 秒）「操作手感」可調、會存檔；自我檢查 `godot --headless --path godot --script res://tools/test_stick_steer.gd` |
+| 21 | 浮動搖桿、按鈕感應放大 | **Godot 刻意不同**：固定搖桿常因手指沒按準沒反應，改成浮動搖桿（觸發區 = 畫面下方 50%，扣掉安全區域與攻擊按鈕感應範圍）；攻擊按鈕感應範圍比圖示大 30%（圖示不變），按鈕範圍內按下的手指不會變成搖桿，多指互不干擾。放開 = 閃避不變。只影響 client 輸入 | `ui/joystick.gd`、`ui/attack_button.gd`、`ui/touch_controls.gd`；效能面板可切浮動／固定、調觸發區高度與感應放大比例 |
 
 ### 備註：App 被殺掉後重開回到對戰（#17，之後再做）
 

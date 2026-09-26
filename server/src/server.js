@@ -2,7 +2,7 @@ import { WebSocketServer } from "ws";
 import { Player } from "./player.js";
 import { Matchmaker } from "./matchmaking.js";
 import { C2S, S2C, CONFIG } from "./events.js";
-import { createPlayer, findPlayerById, findPlayerByRecoveryCode, getRecord, recordMatchResult, getNickname, cleanNickname, setNickname } from "./db.js";
+import { createPlayer, findPlayerById, findPlayerByRecoveryCode, getRecord, recordMatchResult, getNickname, cleanNickname, setNickname, addFriends, getFriends } from "./db.js";
 
 const PORT = process.env.PORT || 8080;
 // 正式環境建議搭配 deploy/nginx.conf.example,由 Nginx 終止 wss:// 再轉給這裡的 ws://
@@ -11,6 +11,12 @@ const HOST = process.env.HOST || "0.0.0.0";
 const wss = new WebSocketServer({ port: PORT, host: HOST });
 const matchmaker = new Matchmaker();
 matchmaker.recordResult = recordMatchResult;
+matchmaker.nicknameOf = getNickname;
+// 兩位真人開房 = 對戰過 → 互相加好友(NPC 不記)
+matchmaker.onRoomCreated = (room) => {
+  const [a, b] = room.playerIds.map((id) => room.players[id]);
+  if (!a.isNpc && !b.isNpc) addFriends(a.id, b.id);
+};
 
 // 目前在線玩家: playerId -> Player (供好友ID配對查詢)
 const onlinePlayers = new Map();
@@ -256,6 +262,12 @@ wss.on("connection", (ws) => {
 
       case C2S.GET_RECOVERY_CODE:
         player.send(S2C.RECOVERY_CODE, { recoveryCode: findPlayerById(player.id)?.recoveryCode });
+        break;
+
+      case C2S.GET_FRIENDS:
+        player.send(S2C.FRIENDS, {
+          friends: getFriends(player.id).map((f) => ({ ...f, online: !!onlinePlayers.get(f.playerId)?.connected })),
+        });
         break;
 
       case C2S.LEAVE_ROOM: {

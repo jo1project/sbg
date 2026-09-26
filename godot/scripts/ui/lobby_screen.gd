@@ -1,11 +1,11 @@
-# 大廳（線上模式，連上伺服器後、按「開始配對」之前的畫面；結算畫面「返回大廳」也回到這裡）。
+# 大廳（線上模式，連上伺服器後、按「隨機配對」之前的畫面；結算畫面「返回大廳」也回到這裡）。
 # 由上到下：
 #   頂部列：設定齒輪（→ ui/settings_page.gd）、鑽石數量（功能未做，先顯示 0）
 #   Logo 橫幅：地牢地板磚紋底 +「JO一個英雄」金字深棕紅描邊（字級依寬度縮到放得下，不換行不裁切）+「SNAKE BATTLE」
 #   玩家資訊卡：頭像（預設圖示）、名稱（暱稱，沒設過用 ID）、勝／敗（伺服器 player_records）
 #   造型預覽：目前的蛇（英雄 + 哥布林）、金框箭頭 → 造型頁（敬請期待）
-#   「開始配對」按鈕（按了才進原本的「配對中…」畫面）
-#   底部導覽：造型／排行榜／好友（未開放，灰階，點了顯示敬請期待）
+#   兩顆按鈕：「隨機配對」（綠，按了進原本的「配對中…」畫面）、「好友連線」（藍，→ ui/friends_page.gd 輸入編號邀請）
+#   底部導覽：造型／排行榜（未開放，灰階，點了顯示敬請期待）、好友（→ 好友清單，可直接邀請）
 # 顯示時會把觸控操作（搖桿、攻擊按鈕）關掉，免得點到底部導覽時一起觸發搖桿。
 extends CanvasLayer
 
@@ -13,6 +13,7 @@ signal start_pressed
 
 const CharacterSprites := preload("res://scripts/character_sprites.gd")
 const SettingsPage := preload("res://scripts/ui/settings_page.gd")
+const FriendsPage := preload("res://scripts/ui/friends_page.gd")
 const DP := UiStyle.DP
 
 const BG := Color("14110d")
@@ -29,6 +30,8 @@ const TEXT := Color("d3d1c7")
 const GREEN_BG := Color("173404")
 const GREEN_BORDER := Color("639922")
 const GREEN_TEXT := Color("eaf3de")
+const BLUE_BG := Color("0c2340")
+const BLUE_TEXT := Color("e6f1fb")
 const FLOORS := ["floor_1", "floor_2", "floor_3", "floor_4", "floor_5", "floor_6", "floor_7", "floor_8"]
 
 @export var touch_controls: CanvasLayer   # 安全區域 + 顯示大廳時關掉觸控操作
@@ -39,12 +42,13 @@ var _name: Label
 var _id: Label
 var _wins: Label
 var _losses: Label
-var _start: Button
+var _start_row: HBoxContainer   # 隨機配對 + 好友連線
 var _start_label: Label
 var _notice: Label
 var _soon: Control
 var _soon_title: Label
 var settings_page: SettingsPage   # game_session 接它的訊號（暱稱、繼承碼）
+var friends_page: FriendsPage     # game_session 接它的訊號（邀請、要好友清單）
 var _ready_to_start := false
 var _floor_tex: Array[Texture2D] = []
 
@@ -73,17 +77,11 @@ func _ready() -> void:
 	_col.add_child(_player_card())
 	_col.add_child(_skin_preview())
 
-	_start = _plain_button(UiStyle.box(GREEN_BG, GREEN_BORDER, 2, 10, 0), UiStyle.box(Color("27500a"), GREEN_BORDER, 2, 10, 0))
-	_start.custom_minimum_size.y = 60 * DP
-	_start.pressed.connect(func():
-		if _ready_to_start:
-			start_pressed.emit())
-	_start_label = UiStyle.label("開始配對", 22, GREEN_TEXT)
-	_start_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_start_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_start_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_start.add_child(_start_label)
-	_col.add_child(_start)
+	_start_row = HBoxContainer.new()
+	_start_row.add_theme_constant_override("separation", int(10 * DP))
+	_col.add_child(_start_row)
+	_start_label = _big_button(_start_row, "隨機配對", GREEN_BG, Color("27500a"), GREEN_BORDER, GREEN_TEXT, start_pressed.emit)
+	_big_button(_start_row, "好友連線", BLUE_BG, Color("123460"), BLUE, BLUE_TEXT, func(): friends_page.open("connect"))
 
 	_notice = UiStyle.label("", 12, GREY)
 	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -92,6 +90,8 @@ func _ready() -> void:
 
 	_col.add_child(_bottom_nav())
 
+	friends_page = FriendsPage.new()
+	root.add_child(friends_page)
 	settings_page = SettingsPage.new()
 	settings_page.avatar_pressed.connect(_show_soon.bind("頭像"))
 	root.add_child(settings_page)
@@ -115,6 +115,7 @@ func _layout() -> void:
 	_col.offset_top = inset.y + 8 * DP
 	_col.offset_bottom = -(inset.w + 8 * DP)
 	settings_page.set_margins(inset.x + side, inset.y + 8 * DP, inset.z + side, inset.w + 8 * DP)
+	friends_page.set_margins(inset.x + side, inset.y + 8 * DP, inset.z + side, inset.w + 8 * DP)
 	# 標題字級：預設 40dp，放不下就縮（不換行、不裁切）
 	var avail := ui.x - inset.x - inset.z - 2 * side - 2 * 16 * DP
 	var want := int(40 * DP)
@@ -126,8 +127,8 @@ func _layout() -> void:
 # can_start：已連上伺服器、可以配對；notice：按鈕下方的小字（連線狀態、返回大廳的原因）
 func set_ready(can_start: bool, notice := "") -> void:
 	_ready_to_start = can_start
-	_start.modulate = Color.WHITE if can_start else Color(1, 1, 1, 0.45)
-	_start_label.text = "開始配對" if can_start else "連線中…"
+	_start_row.modulate = Color.WHITE if can_start else Color(1, 1, 1, 0.45)
+	_start_label.text = "隨機配對" if can_start else "連線中…"
 	_notice.text = notice
 
 func set_notice(text: String) -> void:
@@ -136,6 +137,7 @@ func set_notice(text: String) -> void:
 # record：伺服器 identified / game_over.stats 的 { wins, losses, draws }
 func set_player(player_id: String, record: Dictionary, nickname := "") -> void:
 	_id.text = "ID %s" % player_id
+	friends_page.set_my_id(player_id)
 	set_nickname(nickname, player_id)
 	set_record(record)
 
@@ -158,6 +160,7 @@ func _sync_touch_controls() -> void:
 	if not visible:
 		_soon.hide()
 		settings_page.hide()
+		friends_page.hide()
 
 # ---------- 各區塊 ----------
 
@@ -314,21 +317,23 @@ func _bottom_nav() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", int(6 * DP))
 	bar.add_child(row)
-	# 三個都還沒開放：灰階，點了顯示敬請期待
+	# 造型、排行榜還沒開放：灰階，點了顯示敬請期待
 	for item in [["skin", "造型"], ["trophy", "排行榜"], ["friends", "好友"]]:
+		var open: bool = item[1] == "好友"
+		var color := TEXT if open else GREY
 		var b := _plain_button(StyleBoxEmpty.new(), UiStyle.box(Color(1, 1, 1, 0.05), Color.TRANSPARENT, 0, 8, 0))
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size.y = 58 * DP
-		b.pressed.connect(_show_soon.bind(item[1]))
+		b.pressed.connect(func(): friends_page.open("list") if open else _show_soon(item[1]))
 		var v := VBoxContainer.new()
 		v.set_anchors_preset(Control.PRESET_FULL_RECT)
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.add_theme_constant_override("separation", int(2 * DP))
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var ic := _icon(item[0], 24, GREY)
+		var ic := _icon(item[0], 24, color)
 		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		v.add_child(ic)
-		var l := UiStyle.label(item[1], 12, GREY)
+		var l := UiStyle.label(item[1], 12, color)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
 		b.add_child(v)
@@ -378,6 +383,22 @@ func _show_soon(title: String) -> void:
 	_soon.show()
 
 # ---------- 小工具 ----------
+
+# 大廳主按鈕（隨機配對／好友連線），沒連上伺服器時按了沒反應；回傳文字 Label
+func _big_button(parent: Control, text: String, bg: Color, bg_pressed: Color, border: Color, fg: Color, cb: Callable) -> Label:
+	var b := _plain_button(UiStyle.box(bg, border, 2, 10, 0), UiStyle.box(bg_pressed, border, 2, 10, 0))
+	b.custom_minimum_size.y = 60 * DP
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.pressed.connect(func():
+		if _ready_to_start:
+			cb.call())
+	var l := UiStyle.label(text, 20, fg)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	b.add_child(l)
+	parent.add_child(b)
+	return l
 
 func _plain_button(normal: StyleBox, pressed: StyleBox) -> Button:
 	return UiStyle.button(normal, pressed)

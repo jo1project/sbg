@@ -23,6 +23,13 @@ db.exec(`
     losses INTEGER NOT NULL DEFAULT 0,
     draws INTEGER NOT NULL DEFAULT 0
   );
+  -- 好友:對戰過的真人(NPC 不記),雙向各一列,server.js 在開房時寫入
+  CREATE TABLE IF NOT EXISTS friends (
+    playerId TEXT NOT NULL,
+    friendId TEXT NOT NULL,
+    lastMatchedAt INTEGER NOT NULL,
+    PRIMARY KEY (playerId, friendId)
+  );
   -- 暱稱:同上,獨立一張表
   CREATE TABLE IF NOT EXISTS player_profiles (
     playerId TEXT PRIMARY KEY,
@@ -41,6 +48,8 @@ function genRecoveryCode() {
   return `${genRecoverySegment()}-${genRecoverySegment()}-${genRecoverySegment()}`;
 }
 
+export const FRIENDS_MAX = 50;
+
 const stmts = {
   insert: db.prepare(
     "INSERT INTO players (playerId, recoveryCode, createdAt) VALUES (?, ?, ?)"
@@ -52,6 +61,15 @@ const stmts = {
   setNickname: db.prepare(`
     INSERT INTO player_profiles (playerId, nickname) VALUES (?, ?)
     ON CONFLICT(playerId) DO UPDATE SET nickname = excluded.nickname
+  `),
+  addFriend: db.prepare(`
+    INSERT INTO friends (playerId, friendId, lastMatchedAt) VALUES (?, ?, ?)
+    ON CONFLICT(playerId, friendId) DO UPDATE SET lastMatchedAt = excluded.lastMatchedAt
+  `),
+  friends: db.prepare(`
+    SELECT f.friendId AS playerId, p.nickname FROM friends f
+    LEFT JOIN player_profiles p ON p.playerId = f.friendId
+    WHERE f.playerId = ? ORDER BY f.lastMatchedAt DESC LIMIT ${FRIENDS_MAX}
   `),
   addResult: db.prepare(`
     INSERT INTO player_records (playerId, wins, losses, draws) VALUES (@playerId, @w, @l, @d)
@@ -82,6 +100,18 @@ export function cleanNickname(raw) {
 
 export function setNickname(playerId, nickname) {
   stmts.setNickname.run(playerId, nickname);
+}
+
+/** 兩位真人對戰過 → 互相加進好友(已經是好友就更新時間,排到最前面) */
+export const addFriends = db.transaction((a, b) => {
+  const now = Date.now();
+  stmts.addFriend.run(a, b, now);
+  stmts.addFriend.run(b, a, now);
+});
+
+/** 好友清單 [{ playerId, nickname }],最近對戰的在前面 */
+export function getFriends(playerId) {
+  return stmts.friends.all(playerId);
 }
 
 /** 記一場結果(outcome: "win" | "loss" | "draw"),回傳更新後的累計戰績 */

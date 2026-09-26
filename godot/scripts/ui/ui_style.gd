@@ -30,3 +30,27 @@ static func button(normal: StyleBox, pressed: StyleBox) -> Button:
 	b.add_theme_stylebox_override("pressed", pressed)
 	b.add_theme_stylebox_override("disabled", normal)
 	return b
+
+# 輸入框（設定頁、好友連線）
+static func line_edit(placeholder: String, max_len: int) -> LineEdit:
+	var e := LineEdit.new()
+	e.placeholder_text = placeholder
+	e.max_length = max_len
+	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	e.add_theme_font_size_override("font_size", int(15 * DP))
+	e.add_theme_stylebox_override("normal", box(Color("14110d"), Color("3a3228"), 1, 6, 8))
+	e.add_theme_stylebox_override("focus", box(Color("14110d"), Color("ba7517"), 1, 6, 8))
+	return e
+
+# 金框小按鈕（文字置中）
+static func small_button(text: String, cb: Callable, fg := Color("fac775"), bg := Color("2a1f0e"), border := Color("ba7517")) -> Button:
+	var b := button(box(bg, border, 1.5, 8, 0), box(bg.lightened(0.1), border, 1.5, 8, 0))
+	b.custom_minimum_size = Vector2(60, 40) * DP
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var l := label(text, 14, fg)
+	l.set_anchors_preset(Control.PRESET_FULL_RECT)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	b.add_child(l)
+	b.pressed.connect(cb)
+	return b

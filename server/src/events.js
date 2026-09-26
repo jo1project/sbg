@@ -20,6 +20,7 @@ export const C2S = {
   LEAVE_ROOM: "leave_room",
   SET_NICKNAME: "set_nickname",           // { nickname } 1～12 字,成功回 nickname_updated,不合格回 error { reason: "invalid_nickname" }
   GET_RECOVERY_CODE: "get_recovery_code", // 設定頁「顯示繼承碼」用,回 recovery_code
+  GET_FRIENDS: "get_friends",             // 好友清單(對戰過的真人),回 friends
 };
 
 export const S2C = {
@@ -29,7 +30,7 @@ export const S2C = {
   RESTORE_FAILED: "restore_failed",
   MATCH_FOUND: "match_found",
   MATCH_WAITING: "match_waiting",
-  INVITE_RECEIVED: "invite_received",     // 收到別人的邀請
+  INVITE_RECEIVED: "invite_received",     // 收到別人的邀請 { fromPlayerId, fromNickname(null = 沒設) }
   INVITE_SENT: "invite_sent",             // 通知發起方邀請已送出、進入等待中
   INVITE_FAILED: "invite_failed",         // 對方不在線/忙碌中
   INVITE_REJECTED: "invite_rejected",     // 對方拒絕
@@ -55,6 +56,7 @@ export const S2C = {
   GAME_OVER: "game_over",
   NICKNAME_UPDATED: "nickname_updated", // { nickname }
   RECOVERY_CODE: "recovery_code",       // { recoveryCode }
+  FRIENDS: "friends",                   // { friends: [{ playerId, nickname(null = 沒設), online }] },最近對戰的在前面
   ERROR: "error",
 };
 

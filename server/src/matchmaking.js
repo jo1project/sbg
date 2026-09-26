@@ -10,6 +10,7 @@ export class Matchmaker {
     this.rooms = new Map(); // roomId -> Room
     this.onRoomCreated = null; // callback(room) 由外部(server.js)注入,方便挂 disconnect handler 等
     this.recordResult = null; // 由 server.js 注入 db.js recordMatchResult,交給每個 Room 在結束時記戰績
+    this.nicknameOf = () => null; // 由 server.js 注入 db.js getNickname(邀請通知帶暱稱)
   }
 
   // ---------- 隨機配對 ----------
@@ -99,7 +100,7 @@ export class Matchmaker {
     target.incomingInvite = { fromId: fromPlayer.id };
 
     fromPlayer.send(S2C.INVITE_SENT, { targetPlayerId: target.id, timeoutMs: CONFIG.INVITE_TIMEOUT_MS });
-    target.send(S2C.INVITE_RECEIVED, { fromPlayerId: fromPlayer.id });
+    target.send(S2C.INVITE_RECEIVED, { fromPlayerId: fromPlayer.id, fromNickname: this.nicknameOf(fromPlayer.id) });
   }
 
   acceptInvite(target, onlinePlayers) {

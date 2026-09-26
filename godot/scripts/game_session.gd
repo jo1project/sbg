@@ -3,7 +3,7 @@
 # 模式：
 #   本地單機（debug build 預設）：本地食物產生器；3-2-1 倒數後自動往右走；死亡後 1 秒重新倒數。
 #   線上（release build 預設；debug 用 --online / SBG_ONLINE=1 / 勾 online；強制本地 --local，見 app_config.gd）：
-#     連伺服器，大廳（ui/lobby_screen.gd）按「開始配對」（或 M 鍵）排隊；結束後顯示結算畫面（ui/result_screen.gd）；
+#     連伺服器，大廳（ui/lobby_screen.gd）按「隨機配對」（或 M 鍵）排隊、「好友連線」用編號邀請；結束後顯示結算畫面（ui/result_screen.gd）；
 #     obstacle_layout → 換地圖；food_spawned → 伺服器食物；match_found → 3-2-1 倒數 → 自動往右走；
 #     每秒 snake_position_update；死亡送 death_report 等 game_over。
 #     攻擊：攻擊鈕送 attack_request（等結果期間按鈕變灰）；attack_incoming → 閃避視窗（紅框、準星、震動），放開搖桿送 dodge_attempt；
@@ -21,6 +21,7 @@ const NetClient := preload("res://scripts/net/net_client.gd")
 const ServerFoodSource := preload("res://scripts/net/server_food_source.gd")
 const Haptics := preload("res://scripts/haptics.gd")
 const AppConfig := preload("res://scripts/app_config.gd")
+const InviteOverlay := preload("res://scripts/ui/invite_overlay.gd")
 
 const COUNTDOWN_S := 3            # 同 Flutter _startPreGameCountdown
 const POSITION_SYNC_S := 1.0      # 同 Flutter _startPositionSync（CONFIG.SNAKE_POSITION_SYNC_MS）
@@ -56,6 +57,17 @@ var _local_restart := -1.0
 # 攻擊與閃避（同 Flutter game_controller.dart；計時都用 _process 的 delta，斷線凍結時不推進）
 const HIT_HOLD_S := 2.0            # 命中橫幅期間雙方停住（Flutter _triggerAttackHitBanner 2000ms）
 const EFFECT_NAMES := {"speedup": "加速", "pause": "暫停", "blind": "失明"}
+const INVITE_FAILED := {
+	"target_offline": "對方不在線上（或編號不存在）",
+	"target_busy": "對方正在對戰或配對中",
+	"self_busy": "你正在配對中，或已經有邀請在等回應",
+	"busy": "你正在配對中，或已經有邀請在等回應",
+	"cannot_challenge_self": "不能邀請自己",
+	"inviter_offline": "對方已經離線",
+	"already_in_room": "對方已經在對戰中",
+}
+var invite_overlay: InviteOverlay
+var _invite_name := ""             # 自己送出的邀請：對方的顯示名稱（等待畫面用）
 const REJECT_REASONS := {
 	"attacker_paused": "你正在暫停中",
 	"attack_in_progress": "上一次攻擊還沒結算",
@@ -94,6 +106,22 @@ func _ready() -> void:
 		sp.nickname_submitted.connect(func(n): _send_or_notice("set_nickname", {"nickname": n}))
 		sp.recovery_code_requested.connect(func(): _send_or_notice("get_recovery_code"))
 		sp.restore_submitted.connect(net.restore_account)
+		# 好友連線
+		invite_overlay = InviteOverlay.new()
+		invite_overlay.name = "InviteOverlay"
+		add_child(invite_overlay)
+		var fp = lobby.friends_page
+		fp.refresh_requested.connect(func(): _send_or_notice("get_friends"))
+		fp.invite_requested.connect(_send_invite)
+		invite_overlay.cancel_pressed.connect(func():
+			net.send("invite_cancel")
+			invite_overlay.hide_all())
+		invite_overlay.accept_pressed.connect(func():
+			net.send("invite_accept")
+			invite_overlay.hide_all())
+		invite_overlay.reject_pressed.connect(func():
+			net.send("invite_reject")
+			invite_overlay.hide_all())
 		lobby.show()
 		if net.server_url == "":
 			lobby.set_ready(false, "這個版本沒有設定伺服器網址\n（建置時要用 SERVER_URL 產生 build_config.gd）")
@@ -328,6 +356,7 @@ func _on_connection_lost() -> void:
 		_apply_freeze()
 		overlay.show_banner("連線中斷,重新連線中...")
 	else:
+		invite_overlay.hide_all()   # 伺服器那邊的邀請 30 秒後自己逾時
 		overlay.set_status("連線中斷,重新連線中...")
 		lobby.set_ready(false, "連線中斷,重新連線中...")
 		if state == State.QUEUE:
@@ -362,6 +391,9 @@ func _on_message(msg: Dictionary) -> void:
 				_food_src.spawn(str(msg.foodId), Vector2i(int(msg.position.x), int(msg.position.y)))
 		"match_found":
 			opponent_id = str(msg.get("opponentId", ""))
+			invite_overlay.hide_all()
+			lobby.friends_page.hide()
+			result_screen.hide()   # 在結算畫面接受邀請也會直接開局
 			my_energy = 0
 			opp_energy = 0
 			overlay.hide_banner()
@@ -428,6 +460,23 @@ func _on_message(msg: Dictionary) -> void:
 			_show_result(msg)
 		"match_waiting":
 			pass
+		# 好友連線
+		"friends":
+			lobby.friends_page.set_friends(msg.get("friends") if msg.get("friends") is Array else [])
+		"invite_sent":
+			invite_overlay.show_outgoing(_invite_name, float(msg.get("timeoutMs", 30000)) / 1000.0)
+		"invite_received":
+			var nick = msg.get("fromNickname")
+			var from := str(msg.get("fromPlayerId", ""))
+			invite_overlay.show_incoming(nick if nick is String and nick != "" else "玩家 %s" % from, 30.0)
+		"invite_failed":
+			_invite_notice("邀請失敗:%s" % INVITE_FAILED.get(str(msg.get("reason", "")), str(msg.get("reason", ""))))
+		"invite_rejected":
+			_invite_notice("對方拒絕了邀請")
+		"invite_timeout":
+			_invite_notice("邀請逾時,沒有回應")
+		"invite_cancelled":
+			_invite_notice("對方撤回了邀請")
 		# 設定頁
 		"nickname_updated":
 			lobby.set_nickname(str(msg.get("nickname", "")), net.player_id)
@@ -462,12 +511,27 @@ func _show_result(msg: Dictionary) -> void:
 	if mine.get("record") is Dictionary:
 		lobby.set_record(mine.record)   # 大廳的勝／敗
 
+# 好友連線：送出邀請（好友頁的輸入框或清單），等 invite_sent 再顯示等待畫面
+func _send_invite(player_id: String, display_name: String) -> void:
+	if state not in [State.LOBBY, State.OVER]:
+		return
+	_invite_name = display_name
+	lobby.friends_page.set_notice("")
+	_send_or_notice("challenge_friend", {"targetPlayerId": player_id})
+
+# 邀請結束（失敗／拒絕／逾時／撤回）：關掉彈窗，原因顯示在好友頁與大廳
+func _invite_notice(text: String) -> void:
+	invite_overlay.hide_all()
+	lobby.friends_page.set_notice(text)
+	lobby.set_notice(text)
+
 # 設定頁要送伺服器的動作：還沒連上就提示
 func _send_or_notice(type: String, payload := {}) -> void:
 	if net.is_identified:
 		net.send(type, payload)
 	else:
 		lobby.settings_page.set_notice("還沒連上伺服器")
+		lobby.friends_page.set_notice("還沒連上伺服器")
 
 func _update_status() -> void:
 	top_hud.set_energy(my_energy, opp_energy)

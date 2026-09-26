@@ -23,7 +23,7 @@ signal turned(dir: Vector2i)          # 格子邏輯真正換方向的那一步�
 const QUEUE_MAX := 3               # 最多排幾個轉向，避免按太多累積成很久以前的操作
 
 @export var segment_count := 4                 # 含蛇頭，同 Flutter GameConfig.initialSnakeLength
-@export var step_time := 0.325                 # 每格秒數，同 Flutter GameConfig.moveTickMs
+@export var step_time := 0.35                  # 每格秒數（Flutter GameConfig.moveTickMs 是 325ms，Godot 決定改 350ms，見 PARITY.md）
 @export var speedup_step_time := 0.16          # 加速效果時的每格秒數，同 Flutter GameConfig.speedupTickMs
 @export var camera: Camera3D                   # 角色面向以它的 Y 軸旋轉為準
 @export_file("*.png") var head_sheet := "res://assets/sprites/hero.png"
@@ -44,7 +44,7 @@ var _chars: Array = []             # [0] = 蛇頭
 var _dbg_vis := Vector2i.ZERO      # 等著印「畫面開始轉向」的方向
 var _dbg_face := -1                # 等著印「蛇頭圖換面向」的方向編號
 var _growth := 0                   # 還要長幾節（直接攻擊命中，同 Flutter _growthPending）
-var _step := 0.325                 # 目前每格秒數（加速時變短）
+var _step := 0.35                  # 目前每格秒數（加速時變短）
 var _body_frames: SpriteFrames
 var _rows: Array
 
@@ -101,7 +101,6 @@ func _reset() -> void:
 	_queue.clear()
 	_started = false
 	_growth = 0
-	step_time = GameSettings.step_ms / 1000.0   # TODO 正式上線前拿掉（測試用移動速度）
 	_step = step_time
 	# 上一場被攻擊長出來的節數拿掉
 	while _chars.size() > segment_count:
@@ -120,6 +119,10 @@ func occupied_cells() -> Array[Vector2i]:
 	return _body.duplicate()
 
 # 方向輸入（搖桿/鍵盤）
+# 目前要走的方向：佇列最後一個（還沒套用的轉向），佇列空就是目前方向（搖桿斜角判斷用）
+func heading() -> Vector2i:
+	return _queue.back() if not _queue.is_empty() else dir
+
 func set_direction(d: Vector2i) -> void:
 	var last: Vector2i = _queue.back() if not _queue.is_empty() else dir
 	if d == -last:

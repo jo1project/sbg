@@ -13,6 +13,7 @@ const scripts = [
   "e07_pause_body_death.mjs",
   "d_reconnect.mjs",
   "w05_match_stats.mjs",
+  "m_friends.mjs",
 ];
 
 const results = [];

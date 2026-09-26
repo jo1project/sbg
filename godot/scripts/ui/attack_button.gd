@@ -1,6 +1,8 @@
 # 攻擊按鈕，照 Flutter client/lib/widgets/attack_button.dart：
 # 52 圓、深橘色半透明（disabled 變灰）、白色細框；點一下發動攻擊；長按（0.5 秒）在按鈕上方顯示說明氣泡，
 # 長按後放開只收起氣泡、不發動攻擊。內部用 dp 計算，實際大小由外層 touch_controls.gd 用 anchor/offset 決定。
+# 感應範圍：以按鈕中心為圓心、半徑 = 圖示半徑 × hit_scale 的圓（預設 1.3，比圖示大約 30%，圖示大小不變；
+# 刻意跟 Flutter 不同）。這個範圍裡按下的手指不會變成浮動搖桿（joystick.gd exclude）。
 extends Control
 
 signal pressed
@@ -15,6 +17,7 @@ const DEEP_ORANGE := Color("ff5722")
 var icon := Icon.FLASH
 var tooltip := ""
 var disabled := false
+var hit_scale := 1.3   # GameSettings.button_hit_scale
 
 var _touch := -1
 var _down_pos := Vector2.ZERO
@@ -39,7 +42,7 @@ func _process(delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		if event.pressed and _touch == -1 and _hit(event.position):
+		if event.pressed and _touch == -1 and hit(event.position):
 			_touch = event.index
 			_down_pos = event.position
 			_held = 0.0
@@ -59,9 +62,12 @@ func _input(event: InputEvent) -> void:
 			_tap_ok = false
 		get_viewport().set_input_as_handled()
 
-func _hit(screen_pos: Vector2) -> bool:
+# 螢幕座標是否在感應範圍內（放大的圓）
+func hit(screen_pos: Vector2) -> bool:
+	if not is_visible_in_tree():
+		return false
 	var local := get_global_transform_with_canvas().affine_inverse() * screen_pos
-	return Rect2(Vector2.ZERO, size).has_point(local)
+	return local.distance_to(size / 2.0) <= size.x / 2.0 * hit_scale
 
 func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE * size.x / SIZE)

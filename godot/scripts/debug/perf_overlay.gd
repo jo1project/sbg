@@ -1,10 +1,11 @@
 # 效能資訊面板：FPS、每幀時間、draw calls、物件/頂點數、顯示記憶體、渲染器，
 # 加上幾個特效開關（火把陰影、月光陰影、景深、泛光），在實機上直接比較開/關的效能差異。
+# 「操作手感」：浮動／固定搖桿、觸發區高度、攻擊按鈕感應放大、斜推轉向參數（GameSettings，會存檔，改了立刻套用）。
 #
 # 開關方式（release build 也能用，TestFlight 版就是 release）：
 #   - 三根手指同時按住畫面 1 秒（一般操作只用單指，不容易誤觸）
 #   - debug build 另外可以按 F4
-# 面板上的特效開關只影響這次執行，不存檔。
+# 面板上的特效開關只影響這次執行，不存檔（操作手感的參數會存檔）。
 extends CanvasLayer
 
 const TorchFlicker := preload("res://scripts/torch_flicker.gd")
@@ -46,6 +47,7 @@ func _ready() -> void:
 
 	_root.position = Vector2(24, 260)
 	_root.visible = false
+	_root.add_to_group("blocks_joystick")   # 面板打開時按在上面不會變成浮動搖桿
 	add_child(_root)
 
 	var v := VBoxContainer.new()
@@ -64,6 +66,26 @@ func _ready() -> void:
 	if world_environment and world_environment.environment:
 		var env := world_environment.environment
 		v.add_child(_toggle("泛光", env.glow_enabled, func(on): env.glow_enabled = on))
+	# 操作手感（存檔）
+	var title := Label.new()
+	title.text = "── 操作手感 ──"
+	title.add_theme_font_size_override("font_size", 24)
+	title.modulate = Color(1, 1, 1, 0.7)
+	v.add_child(title)
+	v.add_child(_toggle("浮動搖桿（關 = 固定）", GameSettings.joystick_floating, func(on):
+		GameSettings.joystick_floating = on
+		_tuned()))
+	v.add_child(_stepper("觸發區高度", "%d%%", 100.0, 0.05, 0.2, 0.8,
+		func(): return GameSettings.joystick_zone, func(x): GameSettings.joystick_zone = x))
+	v.add_child(_stepper("按鈕感應", "%d%%", 100.0, 0.05, 1.0, 2.0,
+		func(): return GameSettings.button_hit_scale, func(x): GameSettings.button_hit_scale = x))
+	v.add_child(_stepper("斜推副軸", "%d%%", 100.0, 0.05, 0.05, 0.7,
+		func(): return GameSettings.steer_off_axis, func(x): GameSettings.steer_off_axis = x))
+	v.add_child(_stepper("再觸發角度", "%d°", 1.0, 5.0, 10.0, 90.0,
+		func(): return GameSettings.steer_retrigger_deg, func(x): GameSettings.steer_retrigger_deg = x))
+	v.add_child(_stepper("45°遲滯", "%d°", 1.0, 1.0, 0.0, 20.0,
+		func(): return GameSettings.steer_hysteresis_deg, func(x): GameSettings.steer_hysteresis_deg = x))
+
 	var hint := Label.new()
 	hint.text = "三指按住 1 秒關閉"
 	hint.add_theme_font_size_override("font_size", 22)
@@ -76,6 +98,37 @@ func _toggle(title: String, on: bool, cb: Callable) -> CheckButton:
 	c.button_pressed = on
 	c.toggled.connect(cb)
 	return c
+
+# 「－ 值 ＋」一列；fmt 套在 值 × scale 上
+func _stepper(title: String, fmt: String, scale: float, step: float, lo: float, hi: float, get_v: Callable, set_v: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var name_l := Label.new()
+	name_l.text = title
+	name_l.custom_minimum_size.x = 240
+	row.add_child(name_l)
+	var val := Label.new()
+	val.custom_minimum_size.x = 110
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var show := func(): val.text = fmt % roundi(get_v.call() * scale)
+	for sgn in [-1.0, 1.0]:
+		var b := Button.new()
+		b.text = "－" if sgn < 0 else "＋"
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(90, 60)
+		b.pressed.connect(func():
+			set_v.call(clampf(snappedf(get_v.call() + sgn * step, step), lo, hi))
+			show.call()
+			_tuned())
+		row.add_child(b)
+		if sgn < 0:
+			row.add_child(val)
+	show.call()
+	return row
+
+func _tuned() -> void:
+	GameSettings.save()
+	get_tree().call_group("touch_controls", "apply_tuning")
 
 func _camera_attributes() -> CameraAttributesPractical:
 	if world_environment and world_environment.camera_attributes is CameraAttributesPractical:

@@ -1,7 +1,12 @@
 # 觸控操作 UI（CanvasLayer，疊在 3D 畫面上，不吃景深/泛光這些 3D 後製）。以手機直向為準。
 # 版面照 Flutter screens/game_screen.dart 的 _BottomBelt：底部一列，左右內距 20dp、上下內距 12dp，
 # 左 = 直接攻擊（⚡）、中 = 搖桿、右 = 隨機效果攻擊（🎲），三個垂直置中，整列包在 SafeArea 裡。
-# 全部用 anchor 貼齊螢幕底部（搖桿 anchor 在底部中央、兩顆按鈕在左下/右下），offset 只放 dp 換算後的內距與大小。
+# 全部用 anchor 貼齊螢幕底部（兩顆按鈕在左下/右下），offset 只放 dp 換算後的內距與大小。
+# 搖桿（joystick.gd）的控制項範圍 = 浮動搖桿的觸發區：畫面下方 GameSettings.joystick_zone 的高度、扣掉安全區域；
+# 預設位置（待機底座、固定模式的位置）在這一列的中央。攻擊按鈕的感應範圍（放大的圓）和 blocks_joystick 群組裡
+# 顯示中的面板（結算畫面、邀請彈窗、效能面板）按下不會變成搖桿。
+# 搖桿向量 → 轉向由 stick_steer.gd 判斷（看蛇目前方向處理斜角、同一位置只轉一次、45° 遲滯）。
+# 手感參數都在 GameSettings（效能面板可調），改了呼叫 apply_tuning()（touch_controls 群組）。
 #
 # 尺寸換算：專案是 1080x1920 基準 + stretch canvas_items/expand，UI 座標 = 基準單位。
 # Flutter 的 dp 以「直向手機寬 412dp」對應基準寬 1080 換算（1dp ≈ 2.62 單位），所以按鈕佔螢幕寬的比例跟
@@ -14,6 +19,7 @@ extends CanvasLayer
 
 const Joystick := preload("res://scripts/ui/joystick.gd")
 const AttackButton := preload("res://scripts/ui/attack_button.gd")
+const StickSteer := preload("res://scripts/ui/stick_steer.gd")
 
 signal attack_requested(attack_type: String)   # "direct" / "random"，game_session 送 attack_request
 signal dodge_requested                          # 放開搖桿（同 Flutter Joystick.onRelease → tryDodge）
@@ -41,6 +47,7 @@ var _joystick: Control
 var _btn_direct: Control
 var _btn_random: Control
 var _sim: Control   # 模擬安全區域的遮擋示意
+var _steer := StickSteer.new()
 
 func _ready() -> void:
 	layer = 10   # 在暗角（Vignette，layer 1）上面
@@ -52,8 +59,12 @@ func _ready() -> void:
 
 	_joystick = Joystick.new()
 	_joystick.name = "Joystick"
-	_joystick.direction.connect(_on_direction)
-	_joystick.released.connect(_on_joystick_released)
+	_joystick.dp = DP
+	_joystick.exclude = _blocks_joystick
+	_joystick.moved.connect(_on_stick_moved)
+	_joystick.released.connect(func():
+		_steer.reset()
+		_on_joystick_released())
 	_root.add_child(_joystick)
 
 	_btn_direct = AttackButton.new()
@@ -77,8 +88,30 @@ func _ready() -> void:
 	_sim.draw.connect(_draw_sim)
 	_root.add_child(_sim)
 
+	add_to_group("touch_controls")
 	get_viewport().size_changed.connect(_layout)
+	apply_tuning()
+
+# 套用 GameSettings 的手感參數（效能面板改了會呼叫）
+func apply_tuning() -> void:
+	_joystick.floating = GameSettings.joystick_floating
+	for b in [_btn_direct, _btn_random]:
+		b.hit_scale = GameSettings.button_hit_scale
+	_steer.off_axis_ratio = GameSettings.steer_off_axis
+	_steer.retrigger_deg = GameSettings.steer_retrigger_deg
+	_steer.hysteresis_deg = GameSettings.steer_hysteresis_deg
 	_layout()
+
+# 按在攻擊按鈕感應範圍、或蓋在上面的面板（blocks_joystick 群組）上，不能變成搖桿
+func _blocks_joystick(screen_pos: Vector2) -> bool:
+	if _btn_direct.hit(screen_pos) or _btn_random.hit(screen_pos):
+		return true
+	for n in get_tree().get_nodes_in_group("blocks_joystick"):
+		var c := n as Control
+		var layer_node := c.get_canvas_layer_node() if c else null
+		if c and c.is_visible_in_tree() and (layer_node == null or layer_node.visible) and Rect2(Vector2.ZERO, c.size).has_point(c.get_global_transform_with_canvas().affine_inverse() * screen_pos):
+			return true
+	return false
 
 # 安全區域內距（UI 基準單位）：x=左, y=上, z=右, w=下
 func safe_insets() -> Vector4:
@@ -111,7 +144,17 @@ func _layout() -> void:
 	var belt_bottom := -(inset.w + PAD_V * DP)          # 相對螢幕底邊
 	var b := AttackButton.SIZE * DP
 	var btn_bottom := belt_bottom - (belt - b) / 2.0    # 垂直置中在這一列
-	_place(_joystick, 0.5, -belt / 2.0, belt_bottom, belt)
+	# 搖桿：整個觸發區（下方 joystick_zone、扣掉安全區域），預設位置在這一列中央
+	_joystick.anchor_left = 0.0
+	_joystick.anchor_right = 1.0
+	_joystick.anchor_top = 1.0 - GameSettings.joystick_zone
+	_joystick.anchor_bottom = 1.0
+	_joystick.offset_left = inset.x
+	_joystick.offset_right = -inset.z
+	_joystick.offset_top = 0.0
+	_joystick.offset_bottom = -inset.w
+	_joystick.home_from_bottom = PAD_V * DP + belt / 2.0
+	_joystick.queue_redraw()
 	_place(_btn_direct, 0.0, inset.x + PAD_H * DP, btn_bottom, b)
 	_place(_btn_random, 1.0, -(inset.z + PAD_H * DP) - b, btn_bottom, b)
 	_sim.queue_redraw()
@@ -169,6 +212,13 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_direction(d: Vector2i) -> void:
 	if snake:
 		snake.set_direction(d)
+
+# 搖桿拖曳：交給 stick_steer 依蛇目前的方向（含已排進佇列的）判斷要不要轉
+func _on_stick_moved(v: Vector2) -> void:
+	var heading: Vector2i = snake.heading() if snake else Vector2i.RIGHT
+	var d := _steer.update(v, heading)
+	if d != Vector2i.ZERO:
+		_on_direction(d)
 
 # Flutter 放開搖桿 = 嘗試閃躲（game_session 只在正在被攻擊時才送 dodge_attempt，其他時候是 no-op）
 func _on_joystick_released() -> void:
