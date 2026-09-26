@@ -34,7 +34,7 @@
 細節與指令見 `server/README.md`「部署到 VPS」。重點:
 
 - VPS 上是 **Docker 容器 `snake-battle-server`**(`server/docker-compose.yml`),程式碼掛載 `/root/sbg/server`;前面是另一個專案(calendar-call-reminder)的 **Caddy**,用網路別名 `snake:9090` 轉發 `wss://<網域>/snake`。
-- SSH 在 **port 2222**(22 沒開)。這台 VPS 還跑著其他服務(股票通知、行事曆),不要動它們的容器/設定。
+- 連線用 `ssh sbg-vps`(本機 `~/.ssh/config` 的別名,SSH 在 **port 2222**,22 沒開)。這台 VPS 還跑著其他服務(股票通知、行事曆),不要動它們的容器/設定。
 - 部署前先備份資料庫(`server/deploy/backup-db.sh`,每天 04:30 也會自動備份到 `/root/sbg-backups/`,保留 14 天);容器必須帶 `NODE_ENV=production`;部署後確認 log 沒有「除錯指令已啟用」。
 - 資料庫是 SQLite WAL 模式,**不要直接 `cp` 正在用的 data.sqlite**,用 backup-db.sh(線上備份)。
 - 防火牆:80/443 只接受 Cloudflare(`/usr/local/sbin/geo-firewall.sh`,屬於 calendar-call-reminder 專案)。網域必須維持 Cloudflare 代理,否則網站和憑證續期都會壞。
