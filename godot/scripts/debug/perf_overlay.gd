@@ -1,6 +1,6 @@
 # 效能資訊面板：FPS、每幀時間、draw calls、物件/頂點數、顯示記憶體、渲染器，
 # 加上幾個特效開關（火把陰影、月光陰影、景深、泛光），在實機上直接比較開/關的效能差異。
-# 「操作手感」：浮動／固定搖桿、觸發區高度、攻擊按鈕感應放大、斜推轉向參數（GameSettings，會存檔，改了立刻套用）。
+# 「操作手感」：浮動／固定搖桿、觸發區高度、攻擊按鈕感應放大（GameSettings，會存檔，改了立刻套用）。
 #
 # 開關方式（release build 也能用，TestFlight 版就是 release）：
 #   - 三根手指同時按住畫面 1 秒（一般操作只用單指，不容易誤觸）
@@ -79,12 +79,6 @@ func _ready() -> void:
 		func(): return GameSettings.joystick_zone, func(x): GameSettings.joystick_zone = x))
 	v.add_child(_stepper("按鈕感應", "%d%%", 100.0, 0.05, 1.0, 2.0,
 		func(): return GameSettings.button_hit_scale, func(x): GameSettings.button_hit_scale = x))
-	v.add_child(_stepper("斜推副軸", "%d%%", 100.0, 0.05, 0.05, 0.7,
-		func(): return GameSettings.steer_off_axis, func(x): GameSettings.steer_off_axis = x))
-	v.add_child(_stepper("再觸發角度", "%d°", 1.0, 5.0, 10.0, 90.0,
-		func(): return GameSettings.steer_retrigger_deg, func(x): GameSettings.steer_retrigger_deg = x))
-	v.add_child(_stepper("45°遲滯", "%d°", 1.0, 1.0, 0.0, 20.0,
-		func(): return GameSettings.steer_hysteresis_deg, func(x): GameSettings.steer_hysteresis_deg = x))
 
 	var hint := Label.new()
 	hint.text = "三指按住 1 秒關閉"

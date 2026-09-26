@@ -77,8 +77,8 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 |---|---|---|---|---|
 | 移動速度 | `config.dart` `moveTickMs`（325ms/格）；`game_controller.dart` `_tick()` | `snake_train.gd` `step_time`（**350ms/格**，2026-09 實機測試後決定；Flutter 維持 325ms，見差異 #19） | 完成 | S-01 |
 | 開局 4 節、spawnPos 往左排、面向右 | `game_controller.dart` `_startMatch()` | `snake_train.gd` `reset_to()` | 完成 | S-02 |
-| 轉向：死區 10dp、不能 180 度迴轉、轉向佇列 | `widgets/joystick.dart`（角度切 4 等分）；`game_controller.dart` `setDirection()`（只存最後一個） | `ui/stick_steer.gd`（**斜角轉向，刻意不同，見差異 #20**）、`ui/touch_controls.gd` `_on_stick_moved()`、`snake_train.gd` `set_direction()`（佇列，規格 9.2 已寫明）、`heading()` | 完成 | S-03、S-04、`tools/test_stick_steer.gd` |
-| 浮動搖桿：畫面下半部（扣掉按鈕感應範圍、安全區域）任何地方按下就出現、拖出半徑時底座跟著手指、放開回到預設位置顯示半透明待機底座；可切回固定搖桿 | `widgets/joystick.dart`（固定在底部中央） | `ui/joystick.gd`、`ui/touch_controls.gd` `_layout()` `_blocks_joystick()`（**刻意不同，見差異 #21**） | 完成 | S-12 ～ S-15 |
+| 轉向：4 方向、死區 10dp、不能 180 度迴轉、轉向佇列 | `widgets/joystick.dart`；`game_controller.dart` `setDirection()`（只存最後一個） | `ui/joystick.gd`、`snake_train.gd` `set_direction()`（佇列，規格 9.2 已寫明） | 完成 | S-03、S-04 |
+| 浮動搖桿：畫面下半部（扣掉按鈕感應範圍、安全區域）任何地方按下就出現、拖出半徑時底座跟著手指、放開回到預設位置顯示半透明待機底座；可切回固定搖桿 | `widgets/joystick.dart`（固定在底部中央） | `ui/joystick.gd`、`ui/touch_controls.gd` `_layout()` `_blocks_joystick()`（**刻意不同，見差異 #20**） | 完成 | S-12 ～ S-15 |
 | 死亡判定：wall / self / obstacle | `game/collision.dart` `checkDeath()` | `snake_train.gd` `_death_cause()` | 完成 | S-05 ～ S-08 |
 | 送 death_report（bodyCells 含頭）、5 秒沒回應回大廳、death_report_rejected | `game_controller.dart` `_tick()`、`_onMessage()` | `game_session.gd` `_on_died()`、`_process()` | 完成 | S-09、S-10（`test/s10_fake_death.mjs`） |
 | 每秒 snake_position_update | `game_controller.dart` `_startPositionSync()` | `game_session.gd` `_process()` | 完成 | S-11 |
@@ -97,7 +97,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 
 | 功能 | Flutter 實作位置 | Godot 實作位置 | 狀態 | 驗證方式 |
 |---|---|---|---|---|
-| 兩顆攻擊按鈕：點擊發動、長按顯示說明、放開不發動 | `widgets/attack_button.dart`；`game_screen.dart` `_BottomBelt` | `ui/attack_button.gd`、`ui/touch_controls.gd`（J/K 鍵）→ `attack_requested` 訊號；**感應範圍是比圖示大 30% 的圓**（`hit()`、`GameSettings.button_hit_scale`，差異 #21） | 完成 | A-01 |
+| 兩顆攻擊按鈕：點擊發動、長按顯示說明、放開不發動 | `widgets/attack_button.dart`；`game_screen.dart` `_BottomBelt` | `ui/attack_button.gd`、`ui/touch_controls.gd`（J/K 鍵）→ `attack_requested` 訊號；**感應範圍是比圖示大 30% 的圓**（`hit()`、`GameSettings.button_hit_scale`，差異 #20） | 完成 | A-01 |
 | 送 attack_request，等結果期間按鈕 disabled（不在本地先扣能量，規格 7.5 已改） | `game_controller.dart` `attack()`、`pendingOutgoingAttack` | `game_session.gd` `attack()`、`_attack_pending`、`touch_controls.gd` `set_attack_enabled()` | 完成（Godot 另外擋「不在 PLAYING 狀態」，開局倒數中按了不送） | A-02、A-08 |
 | attack_rejected 顯示原因（含新的 match_paused） | `game_controller.dart` `_onMessage()` | `game_session.gd` `REJECT_REASONS`、`ui/combat_hud.gd` `show_message()` | 完成（**Godot 把 reason 翻成中文**，Flutter 顯示原始英文代碼） | A-05 ～ A-08、D-07 |
 | 直接攻擊命中 → 防守方變長 | `game_controller.dart` `_handleAttackResult()` `_growthPending` | `snake_train.gd` `grow()`（每步多一節，尾巴留在原地） | 完成 | A-03 |
@@ -198,8 +198,7 @@ Godot 線上模式：命令列 `-- --online --sbg-server=ws://…`（或環境�
 | 17 | App 被系統殺掉後重開回到對戰 | **之後再做** | 見下方備註 |
 | 18 | 心跳逾時 | **5 秒**（Flutter 不改、沒有重連，3 秒太容易把網路抖動變成判負） | 伺服器 `CONFIG.HEARTBEAT_TIMEOUT_MS = 5000`、Godot `net_client.gd` `SILENCE_TIMEOUT = 5.0`；規格 6.2、7.4 已更新 |
 | 19 | 移動速度 | **Godot 350ms/格**（用設定頁的測試滑桿在實機上試過後決定，測試滑桿已拿掉）；Flutter 維持 325ms。伺服器不檢查移動速度，兩個 client 可以對打 | Godot `snake_train.gd` `step_time`；規格沒有寫死數值 |
-| 20 | 搖桿斜角轉向 | **Godot 刻意不同**：Flutter 把搖桿角度切 4 等分，推斜角時在 45° 交界有一半機率被判成迴轉或同方向，輸入被丟掉。Godot 看蛇目前的方向（含佇列）：主要軸是迴轉或同方向時改用另一軸（分量 ≥ 推桿長度 25% 才算）；同一次按住只觸發一次，角度再變 30° 以上或回到死區才能再轉（按住不動不鋸齒）；主要軸 45° 交界加 8° 遲滯。死區 10dp、不能迴轉、轉向佇列不變。只影響 client 輸入，跟伺服器、訊息格式無關 | `ui/stick_steer.gd`；參數在效能面板（三指按住 1 秒）「操作手感」可調、會存檔；自我檢查 `godot --headless --path godot --script res://tools/test_stick_steer.gd` |
-| 21 | 浮動搖桿、按鈕感應放大 | **Godot 刻意不同**：固定搖桿常因手指沒按準沒反應，改成浮動搖桿（觸發區 = 畫面下方 50%，扣掉安全區域與攻擊按鈕感應範圍）；攻擊按鈕感應範圍比圖示大 30%（圖示不變），按鈕範圍內按下的手指不會變成搖桿，多指互不干擾。放開 = 閃避不變。只影響 client 輸入 | `ui/joystick.gd`、`ui/attack_button.gd`、`ui/touch_controls.gd`；效能面板可切浮動／固定、調觸發區高度與感應放大比例 |
+| 20 | 浮動搖桿、按鈕感應放大 | **Godot 刻意不同**：固定搖桿常因手指沒按準沒反應，改成浮動搖桿（觸發區 = 畫面下方 50%，扣掉安全區域與攻擊按鈕感應範圍）；攻擊按鈕感應範圍比圖示大 30%（圖示不變），按鈕範圍內按下的手指不會變成搖桿，多指互不干擾。放開 = 閃避不變。只影響 client 輸入 | `ui/joystick.gd`、`ui/attack_button.gd`、`ui/touch_controls.gd`；效能面板可切浮動／固定、調觸發區高度與感應放大比例 |
 
 ### 備註：App 被殺掉後重開回到對戰（#17，之後再做）
 

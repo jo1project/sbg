@@ -4,18 +4,20 @@
 #     扣掉安全區域）。在觸發區任何地方按下，底座中心就出現在手指位置；手指拖出半徑時底座跟著手指走，手指永遠在搖桿範圍內。
 #     沒按著時在預設位置（底部中央）顯示半透明的待機底座，提示這裡可以操作。
 #   固定（同 Flutter）：只有按在預設位置的底座上才算，底座不動。
-# 按下的瞬間不產生方向；拖曳時送出 moved（搖桿頭相對底座中心的向量，dp），由 touch_controls.gd 交給 stick_steer.gd 判斷轉向。
+# 按下的瞬間不產生方向；拖超過死區 10dp 後，每次移動都依角度切成 4 方向送出 direction（同 Flutter；迴轉、同方向由
+# snake_train.gd set_direction() 忽略）。
 # 放開 = 發出 released（Flutter 用這個當「閃躲」操作）。
 # 多指：只吃 InputEventScreenTouch/Drag，每根手指用 index 分開；exclude(螢幕座標) 回傳 true 的位置（攻擊按鈕的感應範圍、
 # 蓋在上面的面板）按下不會變成搖桿。電腦上靠 emulate_touch_from_mouse 讓滑鼠也能用。
 extends Control
 
-signal moved(v: Vector2)   # 搖桿頭相對底座中心（dp，畫面座標 y 往下），長度最多 RADIUS
+signal direction(dir: Vector2i)   # 格子方向：(0,-1) = 畫面上方 = 遠離鏡頭 = JSON y 變小
 signal released
 
 const SIZE := 100.0
 const RADIUS := 45.0
 const KNOB := 40.0
+const DEAD_ZONE := 10.0
 
 var floating := true
 var dp := 1.0                 # 1dp = 幾個 UI 單位（touch_controls 設）
@@ -75,7 +77,20 @@ func _drag(local: Vector2) -> void:
 		v = v.normalized() * RADIUS
 	_knob = v
 	queue_redraw()
-	moved.emit(v)
+	if v.length() < DEAD_ZONE:   # 死區，避免手指微抖動誤觸發
+		return
+	# 同 Flutter 的切法：畫面座標（y 往下）的角度，右 [-45,45)、下 [45,135)、上 [-135,-45)、其餘左
+	var deg := rad_to_deg(atan2(v.y, v.x))
+	var d: Vector2i
+	if deg >= -45 and deg < 45:
+		d = Vector2i.RIGHT
+	elif deg >= 45 and deg < 135:
+		d = Vector2i.DOWN
+	elif deg >= -135 and deg < -45:
+		d = Vector2i.UP
+	else:
+		d = Vector2i.LEFT
+	direction.emit(d)
 
 func _draw() -> void:
 	var active := _touch != -1

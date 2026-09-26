@@ -119,10 +119,6 @@ func occupied_cells() -> Array[Vector2i]:
 	return _body.duplicate()
 
 # 方向輸入（搖桿/鍵盤）
-# 目前要走的方向：佇列最後一個（還沒套用的轉向），佇列空就是目前方向（搖桿斜角判斷用）
-func heading() -> Vector2i:
-	return _queue.back() if not _queue.is_empty() else dir
-
 func set_direction(d: Vector2i) -> void:
 	var last: Vector2i = _queue.back() if not _queue.is_empty() else dir
 	if d == -last:

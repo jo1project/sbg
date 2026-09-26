@@ -66,13 +66,8 @@ func _ready() -> void:
 	var nick_row := _row(profile, "暱稱")
 	_nickname = UiStyle.line_edit("1～%d 個字" % NICKNAME_MAX, NICKNAME_MAX)
 	nick_row.add_child(_nickname)
-	nick_row.add_child(UiStyle.small_button("儲存", func():
-		var s := _nickname.text.strip_edges()
-		if s == "":
-			set_notice("暱稱不能空白")
-			return
-		_nickname.release_focus()
-		nickname_submitted.emit(s)))
+	_nickname.text_submitted.connect(_save_nickname.unbind(1))   # 鍵盤的確定鍵 = 儲存
+	nick_row.add_child(UiStyle.small_button("儲存", _save_nickname))
 	var avatar_row := _row(profile, "頭像")
 	var soon := UiStyle.label("尚未開放", 13, GREY)
 	soon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -93,20 +88,10 @@ func _ready() -> void:
 			set_notice("已複製繼承碼")))
 	var restore_row := _row(account, "輸入")
 	_restore = UiStyle.line_edit("xxxx-xxxx-xxxx", 14)
+	_restore.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_EMAIL_ADDRESS   # 英數鍵盤，見 UiStyle.dismiss_keyboard
+	_restore.text_submitted.connect(_submit_restore.unbind(1))   # 確定鍵 = 按一次「繼承」
 	restore_row.add_child(_restore)
-	restore_row.add_child(UiStyle.small_button("繼承", func():
-		var c := _restore.text.strip_edges().to_lower()
-		if c == "":
-			set_notice("請輸入繼承碼")
-			return
-		_restore.release_focus()
-		if c != _armed_code:
-			_armed_code = c
-			set_notice("目前的帳號會從這台裝置登出，確定的話再按一次「繼承」")
-			return
-		_armed_code = ""
-		set_notice("繼承中…")
-		restore_submitted.emit(c)))
+	restore_row.add_child(UiStyle.small_button("繼承", _submit_restore))
 	var warn := UiStyle.label("繼承後這台裝置會換成那個帳號。目前帳號請先記下繼承碼，不然就找不回來了。", 12, GREY)
 	warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	account.add_child(warn)
@@ -150,6 +135,34 @@ func show_recovery_code(code: String) -> void:
 
 func set_notice(text: String) -> void:
 	_notice.text = text
+
+func _save_nickname() -> void:
+	var s := _nickname.text.strip_edges()
+	_nickname.release_focus()
+	if s == "":
+		set_notice("暱稱不能空白")
+		return
+	nickname_submitted.emit(s)
+
+# 要按兩次才送出（第一次只提示），確定鍵也算一次
+func _submit_restore() -> void:
+	var c := _restore.text.strip_edges().to_lower()
+	_restore.release_focus()
+	if c == "":
+		set_notice("請輸入繼承碼")
+		return
+	if c != _armed_code:
+		_armed_code = c
+		set_notice("目前的帳號會從這台裝置登出，確定的話再按一次「繼承」")
+		return
+	_armed_code = ""
+	set_notice("繼承中…")
+	restore_submitted.emit(c)
+
+# 點輸入框以外的地方收起鍵盤
+func _input(event: InputEvent) -> void:
+	if visible:
+		UiStyle.dismiss_keyboard(event, get_viewport())
 
 func get_notice() -> String:
 	return _notice.text

@@ -26,7 +26,7 @@ var _connect: Control
 var _list_box: Control
 var _list: VBoxContainer
 var _my_id: Label
-var _input: LineEdit
+var _id_input: LineEdit
 var _notice: Label
 
 func _ready() -> void:
@@ -69,21 +69,14 @@ func _ready() -> void:
 
 	var right := _panel(row)
 	right.add_child(UiStyle.label("邀請好友", 13, GREY))
-	_input = UiStyle.line_edit("輸入 %d 碼編號" % ID_LEN, ID_LEN)
-	_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_input.add_theme_font_size_override("font_size", int(20 * DP))
-	right.add_child(_input)
-	var send := UiStyle.small_button("送出邀請", func():
-		var id := _input.text.strip_edges().to_upper()
-		if id.length() != ID_LEN:
-			set_notice("好友編號是 %d 碼" % ID_LEN)
-			return
-		if id == _my_id.text:
-			set_notice("不能邀請自己")
-			return
-		_input.release_focus()
-		invite_requested.emit(id, id), BLUE_TEXT, BLUE_BG, BLUE)
+	_id_input = UiStyle.line_edit("輸入 %d 碼編號" % ID_LEN, ID_LEN)
+	_id_input.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_id_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_id_input.add_theme_font_size_override("font_size", int(20 * DP))
+	_id_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_EMAIL_ADDRESS   # 英數鍵盤，見 UiStyle.dismiss_keyboard
+	_id_input.text_submitted.connect(_send_invite.unbind(1))   # 鍵盤的確定鍵 = 送出邀請
+	right.add_child(_id_input)
+	var send := UiStyle.small_button("送出邀請", _send_invite, BLUE_TEXT, BLUE_BG, BLUE)
 	send.size_flags_horizontal = Control.SIZE_FILL
 	right.add_child(send)
 	var hint2 := UiStyle.label("對方要在線上、停在大廳", 11, GREY)
@@ -140,10 +133,26 @@ func open(mode: String) -> void:
 	_list_box.visible = is_list
 	get_node("Outer/Fill").visible = not is_list
 	_notice.text = ""
-	_input.text = ""
+	_id_input.text = ""
 	show()
 	if is_list:
 		refresh_requested.emit()
+
+func _send_invite() -> void:
+	var id := _id_input.text.strip_edges().to_upper()
+	_id_input.release_focus()
+	if id.length() != ID_LEN:
+		set_notice("好友編號是 %d 碼" % ID_LEN)
+		return
+	if id == _my_id.text:
+		set_notice("不能邀請自己")
+		return
+	invite_requested.emit(id, id)
+
+# 點輸入框以外的地方收起鍵盤
+func _input(event: InputEvent) -> void:
+	if visible:
+		UiStyle.dismiss_keyboard(event, get_viewport())
 
 func set_my_id(id: String) -> void:
 	_my_id.text = id

@@ -54,3 +54,15 @@ static func small_button(text: String, cb: Callable, fg := Color("fac775"), bg :
 	b.add_child(l)
 	b.pressed.connect(cb)
 	return b
+
+# 手機鍵盤：iPhone 鍵盤沒有「收起」鍵，Godot 也不會在點別處時自動收，所以有輸入框的頁面在 _input 呼叫這個：
+# 按在目前輸入中的 LineEdit 以外的地方就 release_focus（LineEdit 失去焦點時會收起鍵盤）。不吃掉事件，按鈕照常收到。
+# 另外：iOS 上 Godot 引擎禁止第三方鍵盤（app delegate 的 shouldAllowExtensionPointIdentifier 回傳 NO），
+# 只能輸入英數的欄位（好友編號、繼承碼）用 KEYBOARD_TYPE_EMAIL_ADDRESS 叫出英數鍵盤，不用在注音鍵盤上切換。
+static func dismiss_keyboard(event: InputEvent, viewport: Viewport) -> void:
+	var down: bool = (event is InputEventScreenTouch or event is InputEventMouseButton) and event.pressed
+	if not down:
+		return
+	var f := viewport.gui_get_focus_owner() as LineEdit
+	if f and not Rect2(Vector2.ZERO, f.size).has_point(f.get_global_transform_with_canvas().affine_inverse() * event.position):
+		f.release_focus()
