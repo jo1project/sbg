@@ -92,11 +92,12 @@ export class TestClient {
     this.playerId = null;
   }
 
-  async connect({ playerId = null, ping = true } = {}) {
+  // identify:其他 identify 欄位(例如 { mapSets: ["classic", "large"] } 模擬 Godot),不給 = 跟 Flutter 一樣只送 playerId/deviceInfo
+  async connect({ playerId = null, ping = true, identify = {} } = {}) {
     this.ws = await openSocket(this.url);
     this.ws.on("message", (raw) => this.msgs.push(JSON.parse(raw.toString())));
     if (ping) this.startPing();
-    this.send({ type: "identify", deviceInfo: `test:${this.name}`, ...(playerId ? { playerId } : {}) });
+    this.send({ type: "identify", deviceInfo: `test:${this.name}`, ...identify, ...(playerId ? { playerId } : {}) });
     const idm = await this.waitFor((m) => m.type === "identified", 3000);
     if (!idm) throw new Error(`${this.name} identify 沒回應`);
     this.playerId = idm.playerId;

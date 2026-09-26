@@ -74,12 +74,18 @@ setInterval(() => {
 
 // 斷線寬限期內重連(或是舊連線其實已死、伺服器還沒發現就先收到新連線):把新的 ws 綁回原本的 Player,
 // 保留能量/效果/房間狀態;房間裡所有真人都在線時恢復對局(match_resumed 同時送給雙方)。
-function resumeConnection(existing, ws, deviceInfo) {
+// identify 的 mapSets(選填):只收字串陣列,其他一律當成只支援 classic
+function parseMapSets(v) {
+  return Array.isArray(v) && v.every((s) => typeof s === "string") ? v.slice(0, 8) : ["classic"];
+}
+
+function resumeConnection(existing, ws, deviceInfo, mapSets) {
   const oldWs = existing.ws;
   existing.ws = ws;
   existing.connected = true;
   existing.lastSeenAt = Date.now();
   existing.deviceInfo = deviceInfo || existing.deviceInfo;
+  existing.mapSets = mapSets; // 只影響之後的新對局,進行中的房間地圖已經定了
   clearTimeout(existing.disconnectTimer);
   existing.disconnectTimer = null;
   wsToPlayerId.set(ws, existing.id);
@@ -156,7 +162,7 @@ wss.on("connection", (ws) => {
 
       if (existingConn && (!existingConn.connected || getRoom(existingConn))) {
         // 寬限期內重連(含:舊連線在房間裡、伺服器還沒發現它已經斷了)
-        player = resumeConnection(existingConn, ws, msg.deviceInfo);
+        player = resumeConnection(existingConn, ws, msg.deviceInfo, parseMapSets(msg.mapSets));
         return;
       }
 
@@ -172,6 +178,7 @@ wss.on("connection", (ws) => {
 
       player = new Player(playerId, ws);
       player.deviceInfo = msg.deviceInfo || "unknown";
+      player.mapSets = parseMapSets(msg.mapSets);
       player.lastSeenAt = Date.now();
       onlinePlayers.set(playerId, player);
       wsToPlayerId.set(ws, playerId);

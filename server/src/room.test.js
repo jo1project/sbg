@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { Room } from "./room.js";
+import { Room, gemCountFor } from "./room.js";
 import { Player } from "./player.js";
 import { CONFIG } from "./events.js";
 
@@ -117,6 +117,22 @@ assert.equal(room.validateDeathReport("A", "wall", { x: 36, y: 5 }), true, "大�
     counts[pos.x === 10 ? "corridor" : "room"]++;
   }
   assert.ok(counts.corridor < 60, `1 格走廊不該分到大量寶石(實際 ${counts.corridor}/2000)`);
+}
+
+// 恆定寶石數:地圖有 gemCount 就用,沒有(classic)就是 CONFIG.FOOD_COUNT
+assert.equal(gemCountFor({ gemCount: 9 }), 9);
+assert.equal(gemCountFor({}), CONFIG.FOOD_COUNT);
+
+// 沒帶 mapSets 的玩家(Flutter)一定拿 classic;NPC 視為支援大地圖(伺服器沒有大地圖時也是 classic)
+{
+  const flutter = new Player("F", { send: () => {} });
+  const godot = new Player("G", { send: () => {} });
+  godot.mapSets = ["classic", "large"];
+  const r = new Room("mixed", flutter, godot);
+  clearInterval(r.minimapTimer);
+  assert.equal(r.mapSet, "classic", "Flutter vs Godot 要用 classic");
+  assert.equal(r.maps["F"].gridCols, CONFIG.MAP_WIDTH);
+  assert.equal(r.maps["G"].gridCols, CONFIG.MAP_WIDTH);
 }
 
 console.log("room.validateDeathReport: 全部通過");

@@ -2,7 +2,9 @@
 
 export const C2S = {
   // Client -> Server
-  IDENTIFY: "identify",               // 連線建立後回報自己的 playerId(沒有則視為新玩家)
+  // 連線建立後回報自己的 playerId(沒有則視為新玩家)。選填 mapSets: 支援的地圖組,例如 ["classic","large"];
+  // 沒帶 = 只支援 classic(Flutter)。雙方都支援 "large" 才會配到大地圖,見 room.js constructor
+  IDENTIFY: "identify",
   RESTORE_ACCOUNT: "restore_account", // 用還原碼找回帳號
   JOIN_QUEUE: "join_queue",           // 加入隨機配對佇列
   CHALLENGE_FRIEND: "challenge_friend", // 輸入好友ID發出邀請
@@ -38,7 +40,8 @@ export const S2C = {
   INVITE_CANCELLED: "invite_cancelled",   // 發起方自己取消(通知對方邀請已撤回)
   PONG: "pong",
   FOOD_SPAWNED: "food_spawned",
-  OBSTACLE_LAYOUT: "obstacle_layout", // 房間建立時一次性推送該玩家從固定地圖池抽到的整包地圖資料({ map }),只給該玩家自己,雙方各自獨立不同步
+  // 房間建立時一次性推送該玩家的整包地圖資料({ map }),只給該玩家自己。classic 雙方各自抽(可能不同),large 雙方同一張(規格2.3)
+  OBSTACLE_LAYOUT: "obstacle_layout",
   ENERGY_UPDATE: "energy_update",
   ATTACK_INCOMING: "attack_incoming",
   ATTACK_REJECTED: "attack_rejected",
@@ -71,7 +74,7 @@ export const CONFIG = {
   SPAM_PAUSE_THRESHOLD: 3,     // 連續被閃躲N次後反噬
   SPAM_PAUSE_DURATION_MS: 3000,
   PAUSE_EFFECT_CAP_MS: 3000,   // 暫停效果的獨立持續時間上限(即使能量計算超過也封頂3秒)
-  FOOD_COUNT: 3,
+  FOOD_COUNT: 3,               // classic 地圖的恆定寶石數;大地圖用地圖 JSON 的 gemCount(依地板格數算,見 tools/gen_large_map.mjs)
   NPC_DODGE_SUCCESS_RATE: 0.3, // 中等難度NPC被攻擊時的閃躲成功率
   DOUBLE_KO_WINDOW_MS: 200, // 雙方死亡回報時間差在此範圍內視為Double KO
   MATCH_WAIT_BEFORE_NPC_MS: 8000, // 隨機配對等待真人的時間
@@ -82,10 +85,15 @@ export const CONFIG = {
   // 斷線當下閃避視窗還開著,恢復時怎麼處理:"remaining" 剩多少給多少 / "full" 重新給完整視窗 / "fail" 判閃躲失敗
   // 已決定用 "full":恢復時重送 attack_incoming 並重新給完整 1 秒(斷線方沒看到的那段不算,也不用 client 精準暫停本地警示計時)
   DODGE_WINDOW_ON_RESUME: "full",
-  MAP_WIDTH: 12,  // 直向手機比例地圖,12欄(x軸),需與地圖池每張地圖的 gridCols 一致
-  MAP_HEIGHT: 24, // 24列(y軸),需與地圖池每張地圖的 gridRows 一致
+  // classic 地圖尺寸(直向手機比例 12欄x24列,需與 classic 地圖池每張地圖的 gridCols/gridRows 一致)。
+  // 伺服器判定都用各地圖自己的 gridCols/gridRows,這兩個只當小地圖雜訊的縮放基準
+  MAP_WIDTH: 12,
+  MAP_HEIGHT: 24,
   SNAKE_POSITION_SYNC_MS: 1000, // 玩家回報蛇身座標的頻率(伺服器內部使用,不轉發完整座標給對手)
   MINIMAP_BROADCAST_MS: 2000,   // 模糊小地圖推播頻率
-  MINIMAP_NOISE_RANGE: 2,       // 小地圖座標誤差範圍(±N格的隨機雜訊)
-  PRE_GAME_COUNTDOWN_MS: 3000,  // client 收到 match_found 後的開局倒數(伺服器不等倒數,只在算結算的存活時間時扣掉)
+  MINIMAP_NOISE_RANGE: 2,       // 小地圖座標誤差範圍(±N格的隨機雜訊),以 12x24 為準,大地圖依寬高等比放大
+  PRE_GAME_COUNTDOWN_MS: 3000,
+  // NPC 模擬吃寶石的間隔 [最短, 最長](ms),依地圖組分開。大地圖寶石密度跟小地圖一樣,但牆和走廊要繞路,先抓慢一點;
+  // 之後用真人大地圖對局的 game_over.stats(gems / survivalMs)校正
+  NPC_FOOD_INTERVAL_MS: { classic: [2000, 3500], large: [2500, 4500] },  // client 收到 match_found 後的開局倒數(伺服器不等倒數,只在算結算的存活時間時扣掉)
 };

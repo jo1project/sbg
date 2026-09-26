@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { S2C, EFFECTS, CONFIG } from "./events.js";
-import { pickRandomMap } from "./maps.js";
+import { pickRandomMap, hasMapSet } from "./maps.js";
 
 /**
  * 判斷座標是否落在地圖的房間或走廊範圍內(可通行地板);範圍以外一律是不可通行的
@@ -47,6 +47,11 @@ function floorCells(map) {
   return cells;
 }
 
+/** 場上恆定寶石數:地圖 JSON 有 gemCount(大地圖產生器依地板格數算好寫進去)就用,沒有就是 CONFIG.FOOD_COUNT */
+export function gemCountFor(map) {
+  return map?.gemCount ?? CONFIG.FOOD_COUNT;
+}
+
 /**
  * 一場 1v1 對戰房間。
  * 房間生命週期短(對戰結束即銷毀),用記憶體管理即可,不需持久化。
@@ -61,8 +66,16 @@ export class Room {
 
     // 模式B:雙方地圖各自獨立,食物也各玩各的,不共用同一份清單
     this.foods = { [playerA.id]: new Map(), [playerB.id]: new Map() };
-    // 固定地圖池:每位玩家各自獨立隨機抽一張,雙方可能拿到不同地圖(見規格2.3節)
-    this.maps = { [playerA.id]: pickRandomMap(), [playerB.id]: pickRandomMap() };
+    // 地圖(規格2.3節):雙方都支援大地圖(identify 帶 mapSets 含 "large";NPC 視為支援)且伺服器有大地圖時,
+    // 雙方用同一張大地圖;否則照舊,每位玩家各自從 classic 地圖池獨立抽一張(Flutter 一定走這條)
+    const supportsLarge = (p) => p.isNpc || p.mapSets?.includes("large");
+    this.mapSet = supportsLarge(playerA) && supportsLarge(playerB) && hasMapSet("large") ? "large" : "classic";
+    if (this.mapSet === "large") {
+      const shared = pickRandomMap("large");
+      this.maps = { [playerA.id]: shared, [playerB.id]: shared };
+    } else {
+      this.maps = { [playerA.id]: pickRandomMap(), [playerB.id]: pickRandomMap() };
+    }
     this.ended = false;
     this.startedAt = Date.now();
     this.pausedTotalMs = 0; // 斷線凍結累計的時間,結算存活時間時扣掉
@@ -188,7 +201,7 @@ export class Room {
     }
   }
 
-  // ---------- 地圖(固定地圖池,雙方各自獨立隨機抽取,見規格2.3節) ----------
+  // ---------- 地圖(固定地圖池,classic 雙方各自抽、large 雙方同一張,見規格2.3節) ----------
 
   sendMapToPlayer(playerId) {
     const player = this.players[playerId];
@@ -200,7 +213,7 @@ export class Room {
 
   spawnInitialFoods() {
     for (const playerId of this.playerIds) {
-      for (let i = 0; i < CONFIG.FOOD_COUNT; i++) this.spawnFood(playerId);
+      for (let i = 0; i < gemCountFor(this.maps[playerId]); i++) this.spawnFood(playerId);
     }
   }
 
@@ -253,7 +266,7 @@ export class Room {
       serverTime: Date.now(),
     });
 
-    this.spawnFood(playerId); // 補回恆定3個(僅該玩家的棋盤)
+    this.spawnFood(playerId); // 補回恆定數量(僅該玩家的寶石)
   }
 
   // ---------- 蛇身座標同步(伺服器內部用,不轉發完整座標給對手) ----------
@@ -275,12 +288,13 @@ export class Room {
         const opponent = this.other(playerId);
         if (!player.lastHeadPos) continue;
 
-        // 對稱的 -N～+N 格整數雜訊(每個值機率相同)
-        const noise = CONFIG.MINIMAP_NOISE_RANGE;
-        const jitter = () => Math.floor(Math.random() * (2 * noise + 1)) - noise;
+        // 對稱的 -N～+N 格整數雜訊(每個值機率相同)。N 依地圖大小等比放大(12x24 是 ±2,36 欄就是 ±6),
+        // 大地圖上誤差佔地圖的比例才會跟小地圖一樣。classic 雙方地圖不同但都是 12x24、large 雙方同一張,所以用發送方的地圖算就好
+        const map = this.maps[playerId];
+        const jitter = (n) => Math.floor(Math.random() * (2 * n + 1)) - n;
         const fuzzyPos = {
-          x: player.lastHeadPos.x + jitter(),
-          y: player.lastHeadPos.y + jitter(),
+          x: player.lastHeadPos.x + jitter(Math.round((CONFIG.MINIMAP_NOISE_RANGE * (map.gridCols || CONFIG.MAP_WIDTH)) / CONFIG.MAP_WIDTH)),
+          y: player.lastHeadPos.y + jitter(Math.round((CONFIG.MINIMAP_NOISE_RANGE * (map.gridRows || CONFIG.MAP_HEIGHT)) / CONFIG.MAP_HEIGHT)),
         };
         opponent.send(S2C.OPPONENT_POSITION_FUZZY, { position: fuzzyPos });
       }

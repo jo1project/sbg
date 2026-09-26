@@ -1,4 +1,5 @@
 import { Player } from "./player.js";
+import { CONFIG } from "./events.js";
 
 /**
  * 簡化版中等難度 NPC。
@@ -16,7 +17,8 @@ export class NpcPlayer extends Player {
 
   // 由 Room 建立房間後呼叫,開始定期做決策
   startBehavior(room) {
-    // 模擬 NPC 吃食物累積能量(簡化:固定間隔隨機加能量)
+    // 模擬 NPC 吃食物累積能量(簡化:固定間隔隨機加能量),間隔依這場的地圖組(CONFIG.NPC_FOOD_INTERVAL_MS)
+    const [minMs, maxMs] = CONFIG.NPC_FOOD_INTERVAL_MS[room.mapSet] || CONFIG.NPC_FOOD_INTERVAL_MS.classic;
     this.foodTimer = setInterval(() => {
       if (this.isPaused() || room.paused) return; // room.paused:對手斷線寬限期間整場凍結
       this.energy += 1;
@@ -26,7 +28,7 @@ export class NpcPlayer extends Player {
         energy: this.energy,
         serverTime: Date.now(),
       });
-    }, 2000 + Math.random() * 1500); // 中等難度:約每2~3.5秒吃到一個食物
+    }, minMs + Math.random() * (maxMs - minMs)); // 中等難度:classic 約每2~3.5秒吃到一個食物
 
     // 能量達到隨機門檻(5~10)後才會出手,而非固定滿量,模擬中等難度的出手時機
     this.attackTimer = setInterval(() => {
